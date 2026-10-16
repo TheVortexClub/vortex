@@ -33,13 +33,24 @@ function addBubble(role, text) {
   const el = document.createElement("div");
   el.className = `msg ${role}`;
   el.textContent = text;
-  chat.appendChild(el);
+  if (role === "bot") {
+    const row = document.createElement("div");
+    row.className = "row";
+    const avatar = document.createElement("img");
+    avatar.className = "avatar";
+    avatar.src = "avatar.svg";
+    avatar.alt = "";
+    row.append(avatar, el);
+    chat.appendChild(row);
+  } else {
+    chat.appendChild(el);
+  }
   chat.scrollTop = chat.scrollHeight;
   return el;
 }
 
 function render() {
-  chat.querySelectorAll(".msg").forEach((el) => el.remove());
+  chat.querySelectorAll(".msg, .row").forEach((el) => el.remove());
   empty.hidden = history.length > 0;
   history.forEach((m) => addBubble(m.role, m.content));
 }

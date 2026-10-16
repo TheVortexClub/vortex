@@ -1,0 +1,92 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: Training steps
+        required: false
+        default: "2000"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install flask pywebview pyinstaller
+
+      - name: Restore trained model
+        id: model-cache
+        uses: actions/cache@v4
+        with:
+          path: checkpoints
+          key: vortex-model-${{ inputs.steps || '2000' }}-${{ hashFiles('data/**', 'vortex/**', 'train.py') }}
+
+      - name: Train model
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: python -u train.py --max-steps ${{ inputs.steps || '2000' }}
+
+      - name: Test model
+        shell: pwsh
+        run: python -c "from vortex.engine import Vortex; v = Vortex('checkpoints'); print(v.reply([('user', 'who are you?')], temperature=0))"
+
+      - name: Build executable
+        shell: pwsh
+        run: |
+          pyinstaller app.py `
+            --name Vortex `
+            --windowed `
+            --noconfirm `
+            --clean `
+            --icon assets/icon.ico `
+            --add-data "web;web" `
+            --add-data "assets;assets" `
+            --add-data "checkpoints;checkpoints" `
+            --collect-submodules webview `
+            --exclude-module torch.utils.tensorboard `
+            --exclude-module matplotlib `
+            --exclude-module tkinter
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item README.md, LICENSE dist/Vortex/
+          Compress-Archive -Path dist/Vortex/* -DestinationPath Vortex-windows-x64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vortex-windows-x64
+          path: dist/Vortex
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Vortex-windows-x64.zip
+          generate_release_notes: true

@@ -1,4 +1,5 @@
 import argparse
+import sys
 import threading
 from pathlib import Path
 
@@ -6,7 +7,7 @@ from flask import Flask, Response, jsonify, request, send_from_directory, stream
 
 from vortex.engine import Vortex
 
-ROOT = Path(__file__).parent
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
 WEB = ROOT / "web"
 
 app = Flask(__name__, static_folder=None)

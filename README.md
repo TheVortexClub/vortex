@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon.png" width="128" alt="Vortex"></p>
+
 # Vortex
 
 A personal AI built from scratch in Python. Vortex is a small GPT-style transformer trained character by character on your own conversations, served through a local web chat. No external APIs, runs fully offline.
@@ -10,6 +12,8 @@ A personal AI built from scratch in Python. Vortex is a small GPT-style transfor
 - Data augmentation for user messages (case, accents, punctuation)
 - Streaming web chat UI with Flask
 - Terminal chat
+- Desktop app with a native window (pywebview)
+- Windows builds through GitHub Actions
 - Runs on CPU, CUDA or Apple Silicon (MPS)
 
 ## Setup
@@ -52,6 +56,29 @@ Terminal:
 python chat.py
 ```
 
+Desktop app:
+
+```bash
+pip install pywebview
+python app.py
+```
+
+Without pywebview, the app opens in your default browser.
+
+## Windows build
+
+Every push to `main` runs `.github/workflows/build.yml`, which trains the model, packages Vortex with PyInstaller and uploads `Vortex-windows-x64` as an artifact. Pushing a tag like `v1.0.0` also publishes the zip as a GitHub release. You can run it manually from the Actions tab and choose the number of training steps.
+
+To build locally on Windows:
+
+```bash
+pip install pyinstaller pywebview
+python train.py
+pyinstaller app.py --name Vortex --windowed --icon assets/icon.ico --add-data "web;web" --add-data "assets;assets" --add-data "checkpoints;checkpoints" --collect-submodules webview
+```
+
+A `checkpoints` folder placed next to `Vortex.exe` overrides the bundled model, so you can retrain without rebuilding.
+
 ## Teaching Vortex
 
 Add `.txt` files to `data/`. Every file in that folder is used for training.
@@ -78,9 +105,12 @@ vortex/
   data.py        conversation parser and batching
   engine.py      inference wrapper
 train.py         training script
+app.py           desktop app launcher
 server.py        web server
 chat.py          terminal chat
 web/             chat interface
+assets/          app icons
+.github/         Windows build workflow
 data/            training conversations
 checkpoints/     trained model
 ```
