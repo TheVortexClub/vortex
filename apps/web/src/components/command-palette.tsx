@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { MessageSquareText, Moon, Plus, Search } from "lucide-react";
+import { BarChart3, FolderOpen, MessageSquareText, Moon, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, type Conversation } from "@/lib/api";
@@ -13,7 +13,7 @@ const itemClass =
   "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted data-[selected=true]:bg-chip data-[selected=true]:text-fg";
 
 export function CommandPalette() {
-  const { paletteOpen, setPaletteOpen, conversations } = useWorkspace();
+  const { paletteOpen, setPaletteOpen, conversations, projects } = useWorkspace();
   const { toggle } = useTheme();
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -43,7 +43,11 @@ export function CommandPalette() {
   };
 
   const q = query.trim().toLowerCase();
-  const sections = SECTIONS.filter((s) => !q || s.label.toLowerCase().includes(q));
+  const sections = [
+    ...SECTIONS,
+    { slug: "uso", label: "Uso e desempenho", href: "/uso", icon: BarChart3 },
+  ].filter((s) => !q || s.label.toLowerCase().includes(q));
+  const matchingProjects = projects.filter((p) => !q || p.name.toLowerCase().includes(q)).slice(0, 6);
   const chats = results ?? conversations.slice(0, 8);
 
   return (
@@ -92,6 +96,16 @@ export function CommandPalette() {
               <Command.Item key={c.id} value={`chat-${c.id}`} onSelect={() => go(`/c/${c.id}`)} className={itemClass}>
                 <MessageSquareText className="size-4 shrink-0" />
                 <span className="truncate">{c.title}</span>
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+        {matchingProjects.length > 0 && (
+          <Command.Group heading="Projetos" className="px-1 pb-2 text-xs text-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5">
+            {matchingProjects.map((p) => (
+              <Command.Item key={p.id} value={`project-${p.id}`} onSelect={() => go(`/projetos/${p.id}`)} className={itemClass}>
+                <FolderOpen className="size-4 shrink-0" />
+                <span className="truncate">{p.name}</span>
               </Command.Item>
             ))}
           </Command.Group>

@@ -1,6 +1,6 @@
 """Vortex API entry point.
 
-    uvicorn vortex_api.main:create_app --factory --reload
+uvicorn vortex_api.main:create_app --factory --reload
 """
 
 import logging
@@ -22,7 +22,8 @@ from .db import Base, make_engine
 from .errors import install_error_handlers
 from .ratelimit import RateLimitMiddleware
 from .registry import Registry
-from .routers import auth, conversations, system, v1
+from .routers import admin, auth, conversations, projects, system, usage, v1
+from .routers import settings as settings_routes
 from .services.chat import GenerationRegistry
 from .services.usage import UsageRecorder
 
@@ -86,5 +87,9 @@ def create_app(
     app.include_router(system.router)
     app.include_router(auth.router)
     app.include_router(conversations.router)
+    app.include_router(projects.router)
+    app.include_router(settings_routes.router)
+    app.include_router(usage.router)
+    app.include_router(admin.router)
     app.include_router(v1.router)
     return app

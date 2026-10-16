@@ -1,9 +1,8 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
 from .. import __version__
-from ..auth import current_user
 
 router = APIRouter(tags=["System"])
 
@@ -49,13 +48,3 @@ async def api_models(request: Request) -> dict[str, Any]:
             for m in registry.list()
         ]
     }
-
-
-@router.get(
-    "/api/usage",
-    tags=["Usage"],
-    summary="Token, latency and throughput totals",
-    dependencies=[Depends(current_user)],
-)
-async def api_usage(request: Request) -> dict[str, Any]:
-    return await request.app.state.usage.summary()

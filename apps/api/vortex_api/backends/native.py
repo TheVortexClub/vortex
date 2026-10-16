@@ -136,8 +136,11 @@ class NativeBackend(Backend):
                 yield {
                     **chunk({}),
                     "choices": [],
-                    "usage": {"prompt_tokens": p, "completion_tokens": pieces,
-                              "total_tokens": p + pieces},
+                    "usage": {
+                        "prompt_tokens": p,
+                        "completion_tokens": pieces,
+                        "total_tokens": p + pieces,
+                    },
                 }
         finally:
             stop.set()  # stops the generation thread if the client went away or cancelled
@@ -155,8 +158,11 @@ class NativeBackend(Backend):
             "created": int(time.time()),
             "model": payload["model"],
             "choices": [
-                {"index": 0, "message": {"role": "assistant", "content": text},
-                 "finish_reason": "stop"}
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": text},
+                    "finish_reason": "stop",
+                }
             ],
             "usage": {"prompt_tokens": p, "completion_tokens": n, "total_tokens": p + n},
         }

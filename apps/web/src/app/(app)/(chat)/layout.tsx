@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ChatScreen } from "@/components/chat/chat-screen";
 import { RightPanel } from "@/components/right-panel";
 
@@ -7,7 +8,9 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex h-full">
       <div className="min-w-0 flex-1">
-        <ChatScreen />
+        <Suspense>
+          <ChatScreen />
+        </Suspense>
       </div>
       <RightPanel />
       {children}

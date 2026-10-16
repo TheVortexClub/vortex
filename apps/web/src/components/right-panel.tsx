@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   type LucideIcon,
   BarChart3,
+  FolderOpen,
   ScanText,
   SlidersHorizontal,
   Sparkles,
@@ -18,7 +19,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
+import { timeAgo } from "@/lib/text";
 import { VortexMark } from "./brand";
+import { PROJECT_COLORS } from "./ui";
 import { useWorkspace } from "./workspace";
 
 const TOOLS: { label: string; icon: LucideIcon; color: string }[] = [
@@ -90,7 +93,7 @@ function Ring({ percent }: { percent: number }) {
 }
 
 export function RightPanel() {
-  const { defaultModel, usage } = useWorkspace();
+  const { defaultModel, usage, projects, projectsLoaded } = useWorkspace();
   const fmt = (n: number) => n.toLocaleString("pt-BR");
 
   return (
@@ -140,13 +143,37 @@ export function RightPanel() {
       </PanelCard>
 
       <PanelCard title="Seus Projetos" action={{ label: "Ver todas", href: "/projetos" }}>
-        <div className="rounded-xl border border-dashed border-line-strong p-4 text-center text-sm text-muted">
-          <Sparkles className="mx-auto mb-2 size-5 text-accent" />
-          Nenhum projeto ainda. Projetos para agrupar conversas e arquivos chegam na etapa 4.
-        </div>
+        {projectsLoaded && projects.length === 0 ? (
+          <Link
+            href="/projetos"
+            className="block rounded-xl border border-dashed border-line-strong p-4 text-center text-sm text-muted hover:border-accent hover:text-fg"
+          >
+            <Sparkles className="mx-auto mb-2 size-5 text-accent" />
+            Nenhum projeto ainda. Crie um para agrupar conversas com o mesmo contexto.
+          </Link>
+        ) : (
+          <ul className="space-y-1">
+            {projects.slice(0, 3).map((p) => (
+              <li key={p.id}>
+                <Link href={`/projetos/${p.id}`} className="flex items-center gap-3 rounded-xl p-2 hover:bg-chip">
+                  <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${PROJECT_COLORS[p.color].bg}`}>
+                    <FolderOpen className={`size-4 ${PROJECT_COLORS[p.color].fg}`} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{p.name}</span>
+                    <span className="block text-xs text-subtle">
+                      {p.conversation_count} {p.conversation_count === 1 ? "conversa" : "conversas"} • modificado{" "}
+                      {timeAgo(p.last_activity)}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </PanelCard>
 
-      <PanelCard title="Uso e Desempenho">
+      <PanelCard title="Uso e Desempenho" action={{ label: "Ver detalhes", href: "/uso" }}>
         <div className="flex items-center gap-4 rounded-xl border border-line bg-elev/60 p-3">
           <Ring percent={100} />
           <div className="text-sm">

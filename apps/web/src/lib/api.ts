@@ -2,7 +2,7 @@
 
 export type Mode = "conversar" | "criar" | "analisar" | "programar" | "planejar" | "automatizar";
 
-export type User = { id: string; email: string; name: string };
+export type User = { id: string; email: string; name: string; is_admin: boolean };
 
 export type Me = { user: User; local_mode: boolean; allow_registration: boolean };
 
@@ -12,6 +12,7 @@ export type Conversation = {
   model: string | null;
   mode: Mode;
   pinned: boolean;
+  project_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -108,3 +109,81 @@ export function errorMessage(e: unknown): string {
   if (e instanceof TypeError) return "Sem conexão com o servidor do Vortex.";
   return e instanceof Error ? e.message : String(e);
 }
+
+// ---------------------------------------------------------------- step 4
+
+export type ProjectColor = "blue" | "violet" | "pink" | "amber" | "emerald" | "cyan";
+
+export type Project = {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  color: ProjectColor;
+  conversation_count: number;
+  created_at: string;
+  updated_at: string;
+  last_activity: string;
+};
+
+export type ToolInfo = {
+  id: string;
+  label: string;
+  description: string;
+  step: number;
+  available: boolean;
+  enabled: boolean;
+};
+
+export type UserSettings = {
+  default_model: string | null;
+  temperature: number | null;
+  max_tokens: number | null;
+  custom_instructions: string;
+  memory_enabled: boolean;
+  tools: ToolInfo[];
+};
+
+export type UsageHistory = {
+  days: { date: string; requests: number; tokens: number }[];
+  models: {
+    model: string;
+    requests: number;
+    tokens: number;
+    avg_latency_ms: number | null;
+    avg_tokens_per_sec: number | null;
+  }[];
+};
+
+export type SystemStats = {
+  platform: string;
+  cpu: { name: string; cores: number; percent: number };
+  memory: { total_gb: number; used_gb: number; percent: number };
+  gpus: {
+    name: string;
+    memory_total_mb: number | null;
+    memory_used_mb: number | null;
+    utilization: number | null;
+    compute: string | null;
+  }[];
+  loaded_models: { name: string; size_gb: number; processor: string }[] | null;
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  is_admin: boolean;
+  created_at: string;
+  conversations: number;
+  last_activity: string | null;
+};
+
+export type ServerInfo = {
+  version: string;
+  local_mode: boolean;
+  allow_registration: boolean;
+  users: number;
+  conversations: number;
+  messages: number;
+};

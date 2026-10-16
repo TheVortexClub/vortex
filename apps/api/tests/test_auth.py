@@ -91,7 +91,12 @@ def test_users_only_see_their_own_conversations(server):
 def test_registration_can_be_closed(tmp_path):
     settings = make_settings(tmp_path, local_mode=False, allow_registration=False)
     with TestClient(create_app(settings)) as c:
-        assert c.post("/api/auth/register", json=ALICE).status_code == 403
+        # the first account is always allowed: it becomes the server admin
+        first = c.post("/api/auth/register", json=ALICE)
+        assert first.status_code == 201 and first.json()["user"]["is_admin"] is True
+        c.cookies.clear()
+        bob = {**ALICE, "email": "bob@example.com"}
+        assert c.post("/api/auth/register", json=bob).status_code == 403
 
 
 def test_secret_is_persisted(tmp_path):

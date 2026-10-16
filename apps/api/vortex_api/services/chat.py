@@ -188,13 +188,18 @@ async def stream_completion(
 
 
 def usage_from_response(
-    spec: ModelSpec, response: dict[str, Any], started: float, endpoint: str
+    spec: ModelSpec,
+    response: dict[str, Any],
+    started: float,
+    endpoint: str,
+    user_id: str | None = None,
 ) -> UsageRecord:
     ended = time.perf_counter()
     usage = response.get("usage") or {}
     completion_tokens = usage.get("completion_tokens")
     elapsed = ended - started
     return UsageRecord(
+        user_id=user_id,
         endpoint=endpoint,
         model=spec.id,
         status="ok",

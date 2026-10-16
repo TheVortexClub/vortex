@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   Download,
+  FolderInput,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -20,15 +21,19 @@ import { RioSkyline } from "./rio-skyline";
 import { useWorkspace } from "./workspace";
 
 function ConversationItem({ conv, active }: { conv: Conversation; active: boolean }) {
-  const { refreshConversations } = useWorkspace();
+  const { refreshConversations, refreshProjects, projects } = useWorkspace();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(conv.title);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!menu) return;
+    if (!menu) {
+      setMoving(false);
+      return;
+    }
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setMenu(false);
     };
@@ -36,9 +41,9 @@ function ConversationItem({ conv, active }: { conv: Conversation; active: boolea
     return () => document.removeEventListener("mousedown", onDown);
   }, [menu]);
 
-  const update = async (body: Partial<Conversation>) => {
+  const update = async (body: Partial<Conversation> | { project_id: string }) => {
     await api(`/api/conversations/${conv.id}`, { method: "PATCH", json: body });
-    await refreshConversations();
+    await Promise.all([refreshConversations(), refreshProjects()]);
   };
 
   const remove = async () => {
@@ -112,6 +117,33 @@ function ConversationItem({ conv, active }: { conv: Conversation; active: boolea
               setRenaming(true);
             }}
           />
+          <MenuButton icon={FolderInput} label="Mover para projeto" onClick={() => setMoving((m) => !m)} />
+          {moving && (
+            <div className="mb-1 ml-3 border-l border-line pl-1">
+              {projects.length === 0 && <p className="px-2.5 py-1.5 text-xs text-subtle">Nenhum projeto ainda.</p>}
+              {projects.map((p) => (
+                <MenuButton
+                  key={p.id}
+                  icon={FolderInput}
+                  label={p.id === conv.project_id ? `${p.name} ✓` : p.name}
+                  onClick={() => {
+                    setMenu(false);
+                    void update({ project_id: p.id });
+                  }}
+                />
+              ))}
+              {conv.project_id && (
+                <MenuButton
+                  icon={X}
+                  label="Tirar do projeto"
+                  onClick={() => {
+                    setMenu(false);
+                    void update({ project_id: "" });
+                  }}
+                />
+              )}
+            </div>
+          )}
           <MenuButton
             icon={Download}
             label="Exportar (.md)"

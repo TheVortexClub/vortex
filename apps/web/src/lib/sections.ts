@@ -69,7 +69,6 @@ export const SECTIONS: Section[] = [
     label: "Projetos",
     href: "/projetos",
     icon: FolderOpen,
-    step: 4,
     description: "Espaços que reúnem conversas, arquivos, agentes e instruções.",
   },
   {
@@ -93,7 +92,6 @@ export const SECTIONS: Section[] = [
     label: "Configurações",
     href: "/configuracoes",
     icon: Settings,
-    step: 4,
     description: "Perfil, idioma, tema, parâmetros do modelo e acesso à API.",
   },
 ];

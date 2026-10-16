@@ -1,15 +1,28 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, type Conversation, type ModelInfo, type Usage } from "@/lib/api";
+import {
+  api,
+  type Conversation,
+  type ModelInfo,
+  type Project,
+  type Usage,
+  type UserSettings,
+} from "@/lib/api";
 
-/** Data shared by the sidebar, the chat and the right panel. */
+/** Data shared by the sidebar, the chat, the right panel and the pages. */
 type WorkspaceValue = {
   conversations: Conversation[];
   conversationsLoaded: boolean;
   refreshConversations: () => Promise<void>;
+  projects: Project[];
+  projectsLoaded: boolean;
+  refreshProjects: () => Promise<void>;
   models: ModelInfo[];
+  /** The user's chosen default model, or the server default. */
   defaultModel: ModelInfo | undefined;
+  settings: UserSettings | null;
+  refreshSettings: () => Promise<void>;
   usage: Usage | null;
   refreshUsage: () => Promise<void>;
   sidebarOpen: boolean;
@@ -22,19 +35,33 @@ const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [conversationsLoaded, setLoaded] = useState(false);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const refreshConversations = useCallback(async () => {
     try {
-      const res = await api<{ data: Conversation[] }>("/api/conversations");
-      setConversations(res.data);
+      setConversations((await api<{ data: Conversation[] }>("/api/conversations")).data);
     } finally {
-      setLoaded(true);
+      setConversationsLoaded(true);
     }
+  }, []);
+
+  const refreshProjects = useCallback(async () => {
+    try {
+      setProjects((await api<{ data: Project[] }>("/api/projects")).data);
+    } finally {
+      setProjectsLoaded(true);
+    }
+  }, []);
+
+  const refreshSettings = useCallback(async () => {
+    setSettings(await api<UserSettings>("/api/settings").catch(() => null));
   }, []);
 
   const refreshUsage = useCallback(async () => {
@@ -43,11 +70,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void refreshConversations().catch(() => {});
+    void refreshProjects().catch(() => {});
+    void refreshSettings();
     void refreshUsage();
     api<{ data: ModelInfo[] }>("/api/models")
       .then((res) => setModels(res.data.filter((m) => m.kind === "chat")))
       .catch(() => {});
-  }, [refreshConversations, refreshUsage]);
+  }, [refreshConversations, refreshProjects, refreshSettings, refreshUsage]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -60,13 +89,21 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const defaultModel =
+    models.find((m) => m.id === settings?.default_model) ?? models.find((m) => m.default) ?? models[0];
+
   const value = useMemo(
     () => ({
       conversations,
       conversationsLoaded,
       refreshConversations,
+      projects,
+      projectsLoaded,
+      refreshProjects,
       models,
-      defaultModel: models.find((m) => m.default) ?? models[0],
+      defaultModel,
+      settings,
+      refreshSettings,
       usage,
       refreshUsage,
       sidebarOpen,
@@ -74,7 +111,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       paletteOpen,
       setPaletteOpen,
     }),
-    [conversations, conversationsLoaded, refreshConversations, models, usage, refreshUsage, sidebarOpen, paletteOpen],
+    [
+      conversations,
+      conversationsLoaded,
+      refreshConversations,
+      projects,
+      projectsLoaded,
+      refreshProjects,
+      models,
+      defaultModel,
+      settings,
+      refreshSettings,
+      usage,
+      refreshUsage,
+      sidebarOpen,
+      paletteOpen,
+    ],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

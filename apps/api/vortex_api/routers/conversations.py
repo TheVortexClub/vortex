@@ -14,11 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, get_session
 from ..errors import BackendError, VortexError
-from ..models_db import DEFAULT_TITLE, Conversation, Message, User, utcnow
+from ..models_db import DEFAULT_TITLE, Conversation, Message, Project, User, utcnow
 from ..schemas import ChatCompletionRequest
 from ..services.chat import _prepend, build_chat_payload, new_id
 from ..services.modes import Mode, system_instructions
 from ..services.usage import UsageRecord
+from ..services.workspace import user_settings
 
 router = APIRouter(prefix="/api", tags=["Conversations"])
 
@@ -30,6 +31,7 @@ class ConversationCreate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=200)
     model: str | None = None
     mode: Mode = "conversar"
+    project_id: str | None = None
 
 
 class ConversationUpdate(BaseModel):
@@ -37,6 +39,7 @@ class ConversationUpdate(BaseModel):
     pinned: bool | None = None
     model: str | None = None
     mode: Mode | None = None
+    project_id: str | None = Field(None, description='Move into a project; "" moves it out')
 
 
 class ChatRequest(BaseModel):
@@ -69,6 +72,7 @@ def conversation_out(c: Conversation) -> dict[str, Any]:
         "model": c.model,
         "mode": c.mode,
         "pinned": c.pinned,
+        "project_id": c.project_id,
         "created_at": iso(c.created_at),
         "updated_at": iso(c.updated_at),
     }
@@ -121,17 +125,27 @@ def _check_model(request: Request, model: str | None) -> None:
         request.app.state.registry.resolve(model, "chat")
 
 
+async def _check_project(session: AsyncSession, user: User, project_id: str | None) -> None:
+    if project_id:
+        project = await session.get(Project, project_id)
+        if project is None or project.user_id != user.id:
+            raise VortexError(404, "Projeto não encontrado", code="project_not_found")
+
+
 # ---------------------------------------------------------------- CRUD
 
 
 @router.get("/conversations", summary="List conversations (pinned first); q searches text")
 async def list_conversations(
     q: str | None = Query(None, max_length=200),
+    project_id: str | None = Query(None, description="Only conversations of this project"),
     limit: int = Query(100, ge=1, le=500),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     stmt = select(Conversation).where(Conversation.user_id == user.id)
+    if project_id:
+        stmt = stmt.where(Conversation.project_id == project_id)
     if q and q.strip():
         escaped = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         like = f"%{escaped}%"
@@ -153,8 +167,13 @@ async def create_conversation(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     _check_model(request, body.model)
+    await _check_project(session, user, body.project_id)
     conv = Conversation(
-        user_id=user.id, title=body.title or DEFAULT_TITLE, model=body.model, mode=body.mode
+        user_id=user.id,
+        title=body.title or DEFAULT_TITLE,
+        model=body.model,
+        mode=body.mode,
+        project_id=body.project_id or None,
     )
     session.add(conv)
     await session.commit()
@@ -186,6 +205,9 @@ async def update_conversation(
         value = getattr(body, field)
         if value is not None:
             setattr(conv, field, value.strip() if isinstance(value, str) else value)
+    if body.project_id is not None:
+        await _check_project(session, user, body.project_id)
+        conv.project_id = body.project_id or None
     await session.commit()
     return conversation_out(conv)
 
@@ -220,7 +242,11 @@ async def branch_conversation(
     if cut is None:
         raise VortexError(404, "Mensagem não encontrada", code="message_not_found")
     branch = Conversation(
-        user_id=user.id, title=f"{conv.title} (ramificação)"[:200], model=conv.model, mode=conv.mode
+        user_id=user.id,
+        title=f"{conv.title} (ramificação)"[:200],
+        model=conv.model,
+        mode=conv.mode,
+        project_id=conv.project_id,
     )
     session.add(branch)
     await session.flush()
@@ -303,7 +329,12 @@ async def chat(
         conv.model = body.model
     if body.mode:
         conv.mode = body.mode
-    spec = state.registry.resolve(conv.model, "chat")
+    prefs = await user_settings(session, user.id)
+    try:
+        spec = state.registry.resolve(conv.model or prefs.default_model, "chat")
+    except VortexError:  # a saved default that no longer exists falls back to the server default
+        spec = state.registry.resolve(conv.model, "chat")
+    project = await session.get(Project, conv.project_id) if conv.project_id else None
 
     user_msg: Message | None = None
     if body.regenerate:
@@ -345,9 +376,29 @@ async def chat(
         for m in messages
         if m.role in ("user", "assistant") and m.content
     ]
-    if instructions := system_instructions(conv.mode, body.think):
+    context = [
+        system_instructions(conv.mode, body.think),
+        f"Instruções do usuário: {prefs.custom_instructions}"
+        if prefs.custom_instructions
+        else None,
+        (
+            f'Esta conversa faz parte do projeto "{project.name}".'
+            + (f"\nContexto do projeto: {project.instructions}" if project.instructions else "")
+        )
+        if project
+        else None,
+    ]
+    if instructions := "\n\n".join(c for c in context if c):
         history.insert(0, {"role": "system", "content": instructions})
-    payload = build_chat_payload(spec, ChatCompletionRequest(messages=history, stream=True))
+    payload = build_chat_payload(
+        spec,
+        ChatCompletionRequest(
+            messages=history,
+            stream=True,
+            temperature=prefs.temperature,
+            max_tokens=prefs.max_tokens,
+        ),
+    )
 
     # Start upstream before answering, so a dead backend is a proper HTTP error.
     stream = state.gateway.backend_for(spec).stream_chat(payload)
@@ -357,6 +408,7 @@ async def chat(
         first = None
 
     completion_id = new_id("chatcmpl")
+    user_id = user.id
     cancel = state.generations.start(completion_id)
     meta = {
         "conversation": conversation_out(conv),
@@ -419,6 +471,7 @@ async def chat(
         gen_time = elapsed - (ttft or 0)
         await state.usage.record(
             UsageRecord(
+                user_id=user_id,
                 endpoint="api.chat",
                 model=spec.id,
                 status=status,

@@ -1,6 +1,7 @@
 """OpenAI-compatible API: point any OpenAI SDK at http://<host>:8000/v1 (no key needed)."""
 
 import time
+from dataclasses import replace
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -8,6 +9,7 @@ from fastapi.responses import StreamingResponse
 
 from ..auth import current_user
 from ..errors import VortexError
+from ..models_db import User
 from ..registry import ModelSpec
 from ..schemas import ChatCompletionRequest, EmbeddingRequest
 from ..services.chat import (
@@ -18,9 +20,7 @@ from ..services.chat import (
 )
 
 # In local mode current_user is the built-in user; with accounts, a login is required.
-router = APIRouter(
-    prefix="/v1", tags=["OpenAI-compatible"], dependencies=[Depends(current_user)]
-)
+router = APIRouter(prefix="/v1", tags=["OpenAI-compatible"], dependencies=[Depends(current_user)])
 
 
 def _openai_model(spec: ModelSpec) -> dict[str, Any]:
@@ -42,7 +42,9 @@ async def get_model(model_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.post("/chat/completions", summary="Create a chat completion (SSE when stream=true)")
-async def chat_completions(body: ChatCompletionRequest, request: Request):
+async def chat_completions(
+    body: ChatCompletionRequest, request: Request, user: User = Depends(current_user)
+):
     state = request.app.state
     spec = state.registry.resolve(body.model, "chat")
     backend = state.gateway.backend_for(spec)
@@ -54,7 +56,9 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
         result = await backend.chat(payload)
         result["id"] = completion_id
         result["model"] = spec.id
-        await state.usage.record(usage_from_response(spec, result, started, "chat.completions"))
+        await state.usage.record(
+            usage_from_response(spec, result, started, "chat.completions", user.id)
+        )
         return result
 
     # Pull the first chunk before answering, so an unreachable backend becomes a proper HTTP error.
@@ -77,7 +81,7 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
                 cancel=cancel,
                 include_usage=bool(body.stream_options and body.stream_options.include_usage),
                 started=started,
-                on_done=state.usage.record,
+                on_done=lambda rec: state.usage.record(replace(rec, user_id=user.id)),
             ):
                 yield event
         finally:
@@ -107,7 +111,9 @@ async def cancel_completion(completion_id: str, request: Request) -> dict[str, A
 
 
 @router.post("/embeddings", summary="Create embeddings")
-async def embeddings(body: EmbeddingRequest, request: Request) -> dict[str, Any]:
+async def embeddings(
+    body: EmbeddingRequest, request: Request, user: User = Depends(current_user)
+) -> dict[str, Any]:
     state = request.app.state
     spec = state.registry.resolve(body.model, "embedding")
     payload = body.model_dump(exclude_none=True)
@@ -115,5 +121,5 @@ async def embeddings(body: EmbeddingRequest, request: Request) -> dict[str, Any]
     started = time.perf_counter()
     result = await state.gateway.backend_for(spec).embeddings(payload)
     result["model"] = spec.id
-    await state.usage.record(usage_from_response(spec, result, started, "embeddings"))
+    await state.usage.record(usage_from_response(spec, result, started, "embeddings", user.id))
     return result

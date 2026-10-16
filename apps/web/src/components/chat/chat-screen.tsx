@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, X } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { AlertTriangle, FolderOpen, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
@@ -34,7 +35,9 @@ export function ChatScreen() {
   const pathname = usePathname();
   const router = useRouter();
   const routeId = pathname.startsWith("/c/") ? decodeURIComponent(pathname.slice(3)) : null;
-  const { models, refreshConversations, refreshUsage } = useWorkspace();
+  const searchParams = useSearchParams();
+  const newChatProject = routeId ? null : searchParams.get("projeto");
+  const { models, projects, refreshConversations, refreshProjects, refreshUsage } = useWorkspace();
 
   const [conv, setConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -168,10 +171,11 @@ export function ChatScreen() {
           completionRef.current = null;
         }
         void refreshConversations().catch(() => {});
+        void refreshProjects().catch(() => {});
         void refreshUsage();
       }
     },
-    [refreshConversations, refreshUsage],
+    [refreshConversations, refreshProjects, refreshUsage],
   );
 
   const send = async (text: string) => {
@@ -193,7 +197,7 @@ export function ChatScreen() {
       try {
         const created = await api<Conversation>("/api/conversations", {
           method: "POST",
-          json: { mode, model },
+          json: { mode, model, project_id: newChatProject },
         });
         setConv(created);
         id = created.id;
@@ -278,6 +282,16 @@ export function ChatScreen() {
     });
   }
   const isHome = !routeId && messages.length === 0;
+  const projectId = conv?.project_id ?? newChatProject;
+  const project = projects.find((p) => p.id === projectId);
+  const projectChip = project && (
+    <Link
+      href={`/projetos/${project.id}`}
+      className="mx-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-1 text-xs text-muted hover:text-fg"
+    >
+      <FolderOpen className="size-3.5" /> {routeId ? "Projeto" : "Nova conversa no projeto"}: {project.name}
+    </Link>
+  );
   const lastAssistant = [...display].reverse().find((m) => m.role === "assistant");
 
   const composerEl = (
@@ -312,6 +326,7 @@ export function ChatScreen() {
       <div className="vx-scroll h-full overflow-y-auto">
         <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
           <Hero />
+          {projectChip}
           <ActionCards active={mode} onPick={pickMode} />
           <SuggestionChips
             onPick={(text, m) => {
@@ -332,6 +347,7 @@ export function ChatScreen() {
       <div ref={scroller} onScroll={onScroll} className="vx-scroll flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6" aria-live="polite">
           {conv && <h1 className="sr-only">{conv.title}</h1>}
+          {projectChip}
           {loading && messages.length === 0 && <p className="text-center text-sm text-subtle">Carregando conversa…</p>}
           {display.map((m) => (
               <MessageView

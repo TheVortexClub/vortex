@@ -65,6 +65,9 @@ have 16 GB+ RAM.
 
 API only (no website): `.\scripts\run-api.ps1`.
 
+Keep it running 24/7 (Ollama, auto-start, power, firewall, fixed IP): see
+[docs/servidor-24h.md](docs/servidor-24h.md) (pt-BR).
+
 ### Option B: Docker (one command)
 
 ```bash
@@ -143,7 +146,7 @@ for `vortex-v0.3`. Every value accepts `${ENV_VAR:-default}`.
 cd apps/api
 python -m venv .venv && .venv/Scripts/activate     # Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev]"
-pytest              # 67 tests; no model needed (fake backends)
+pytest              # 78 tests; no model needed (fake backends)
 ruff check .
 VORTEX_MOCK_BACKEND=true uvicorn vortex_api.main:create_app --factory --reload   # simulated answers
 ```
@@ -162,7 +165,7 @@ npm run test:e2e    # Playwright UI tests (uses installed Edge/Chrome, simulated
 1. ✅ Repo scaffold + docker compose (web, api, ollama, db)
 2. ✅ Model serving + OpenAI-compatible `/v1` API with streaming, cancel, usage, rate limit
 3. ✅ Chat interface (mockup layout, streaming, history, Ctrl+K, light/dark, mobile) + accounts
-4. ⏳ Projects, usage dashboard, settings
+4. ✅ Projects, usage & performance dashboard, settings, server admin
 5. File upload, OCR, RAG, memory
 6. Tools: web search (SearXNG), image generation, code sandbox
 7. Agents and automations

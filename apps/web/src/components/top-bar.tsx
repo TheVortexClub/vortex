@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronDown, LogOut, Menu, Search, Settings } from "lucide-react";
+import { BarChart3, Bell, ChevronDown, LogOut, Menu, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { VortexWordmark } from "./brand";
@@ -122,6 +122,14 @@ export function TopBar() {
                 role="menuitem"
               >
                 <Settings className="size-4" /> Configurações
+              </Link>
+              <Link
+                href="/uso"
+                onClick={close}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-chip"
+                role="menuitem"
+              >
+                <BarChart3 className="size-4" /> Uso e desempenho
               </Link>
               {me && !me.local_mode && (
                 <button

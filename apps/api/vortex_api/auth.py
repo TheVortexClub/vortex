@@ -106,7 +106,7 @@ async def _local_user(request: Request, session: AsyncSession) -> User:
         return user
     user = await session.scalar(select(User).where(User.email == LOCAL_EMAIL))
     if user is None:
-        user = User(email=LOCAL_EMAIL, name="Você")
+        user = User(email=LOCAL_EMAIL, name="Você", is_admin=True)
         session.add(user)
         try:
             await session.commit()
@@ -142,4 +142,10 @@ async def current_user(
     # Sliding session: renew the cookie once half of its lifetime has passed.
     if claims["exp"] - time.time() < settings.session_hours * 1800:
         set_session_cookie(response, request, user.id)
+    return user
+
+
+async def require_admin(user: User = Depends(current_user)) -> User:
+    if not user.is_admin:
+        raise VortexError(403, "Apenas administradores podem fazer isso", code="admin_only")
     return user
