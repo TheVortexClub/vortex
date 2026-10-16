@@ -14,9 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, get_session
 from ..errors import BackendError, VortexError
-from ..models_db import DEFAULT_TITLE, Conversation, Message, Project, User, utcnow
+from ..models_db import DEFAULT_TITLE, Conversation, File, Memory, Message, Project, User, utcnow
 from ..schemas import ChatCompletionRequest
 from ..services.chat import _prepend, build_chat_payload, new_id
+from ..services.files import build_context, delete_files
+from ..services.memory import memories_context, memory_request
 from ..services.modes import Mode, system_instructions
 from ..services.usage import UsageRecord
 from ..services.workspace import user_settings
@@ -49,6 +51,7 @@ class ChatRequest(BaseModel):
     think: bool = False
     regenerate: bool = False
     edit_message_id: str | None = None
+    file_ids: list[str] = Field(default_factory=list, max_length=10)
 
 
 class BranchRequest(BaseModel):
@@ -88,6 +91,8 @@ def message_out(m: Message) -> dict[str, Any]:
         "model": m.model,
         "status": m.status,
         "feedback": m.feedback,
+        "attachments": m.attachments or [],
+        "sources": m.sources or [],
         "created_at": iso(m.created_at),
     }
 
@@ -215,10 +220,18 @@ async def update_conversation(
 @router.delete("/conversations/{conv_id}", status_code=204, summary="Delete a conversation")
 async def delete_conversation(
     conv_id: str,
+    request: Request,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     conv = await owned_conversation(session, user, conv_id)
+    # Files sent only in this chat go with it; files that belong to a project stay.
+    attached = (
+        await session.scalars(
+            select(File).where(File.conversation_id == conv.id, File.project_id.is_(None))
+        )
+    ).all()
+    await delete_files(session, request.app.state, list(attached))
     await session.execute(delete(Message).where(Message.conversation_id == conv.id))
     await session.delete(conv)
     await session.commit()
@@ -259,6 +272,8 @@ async def branch_conversation(
                 reasoning=m.reasoning,
                 model=m.model,
                 status=m.status,
+                attachments=m.attachments,
+                sources=m.sources,
                 created_at=m.created_at,
             )
         )
@@ -336,6 +351,22 @@ async def chat(
         spec = state.registry.resolve(conv.model, "chat")
     project = await session.get(Project, conv.project_id) if conv.project_id else None
 
+    new_files: list[File] = []
+    for file_id in dict.fromkeys(body.file_ids):
+        f = await session.get(File, file_id)
+        if f is None or f.user_id != user.id:
+            raise VortexError(404, "Arquivo não encontrado", code="file_not_found")
+        if f.status == "processing":
+            raise VortexError(
+                409,
+                f'"{f.name}" ainda está sendo lido. Tente em instantes.',
+                code="file_processing",
+            )
+        if f.conversation_id is None:
+            f.conversation_id = conv.id
+        new_files.append(f)
+    attachments = [{"id": f.id, "name": f.name, "kind": f.kind, "size": f.size} for f in new_files]
+
     user_msg: Message | None = None
     if body.regenerate:
         while messages and messages[-1].role == "assistant":
@@ -360,16 +391,38 @@ async def chat(
         messages = messages[: idx + 1]
         user_msg = messages[idx]
         user_msg.content = body.content.strip()
+        if attachments:
+            user_msg.attachments = attachments
     else:
         if not (body.content and body.content.strip()):
             raise VortexError(400, "A mensagem não pode ficar vazia", code="empty_message")
-        user_msg = Message(conversation_id=conv.id, role="user", content=body.content.strip())
+        user_msg = Message(
+            conversation_id=conv.id,
+            role="user",
+            content=body.content.strip(),
+            attachments=attachments or None,
+        )
         session.add(user_msg)
         if conv.title == DEFAULT_TITLE and not any(m.role == "user" for m in messages):
             conv.title = make_title(body.content)
         messages.append(user_msg)
+    query = next((m.content for m in reversed(messages) if m.role == "user"), "")
+    memory_saved = None
+    if prefs.memory_enabled and user_msg is not None and not body.edit_message_id:
+        if fact := memory_request(user_msg.content):
+            session.add(
+                Memory(user_id=user.id, content=fact, source="chat", conversation_id=conv.id)
+            )
+            memory_saved = fact
     conv.updated_at = utcnow()
     await session.commit()
+
+    files_context, sources = await build_context(
+        session, state, conv, [f.id for f in new_files], query
+    )
+    memory_context = (
+        await memories_context(session, user.id, query) if prefs.memory_enabled else None
+    )
 
     history: list[dict[str, Any]] = [
         {"role": m.role, "content": m.content}
@@ -387,6 +440,11 @@ async def chat(
         )
         if project
         else None,
+        memory_context,
+        (f"O usuário acabou de pedir para você lembrar: {memory_saved}. Confirme brevemente.")
+        if memory_saved
+        else None,
+        files_context,
     ]
     if instructions := "\n\n".join(c for c in context if c):
         history.insert(0, {"role": "system", "content": instructions})
@@ -415,6 +473,8 @@ async def chat(
         "user_message": message_out(user_msg) if user_msg else None,
         "completion_id": completion_id,
         "model": spec.id,
+        "sources": sources,
+        "memory_saved": memory_saved,
     }
 
     async def events():
@@ -459,6 +519,7 @@ async def chat(
                     reasoning="".join(reasoning) or None,
                     model=spec.id,
                     status=status,
+                    sources=sources or None,
                 )
                 s.add(msg)
                 if c := await s.get(Conversation, conv_id):

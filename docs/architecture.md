@@ -100,7 +100,7 @@ Implemented in step 2 (✅) and planned (⏳):
 | `/api/conversations`, `/api/messages` (history, chat SSE, regenerate, edit, branch, export) | ✅ step 3 |
 | `/api/auth/*` (argon2 accounts, JWT cookie or Bearer) | ✅ step 3 |
 | `/api/projects`, `/api/settings`, `/api/usage/history`, `/api/system`, `/api/admin/*` | ✅ step 4 |
-| `/api/files`, `/api/memory` | ⏳ step 5 |
+| `/api/files` (upload, OCR, RAG), `/api/memory` | ✅ step 5 |
 | `/api/tools` | ⏳ step 6 |
 | `/api/agents`, `/api/automations` | ⏳ step 7 |
 

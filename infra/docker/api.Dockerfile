@@ -7,8 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# OpenCV (used by the OCR engine) needs these system libraries.
+RUN apt-get update \n    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \n    && rm -rf /var/lib/apt/lists/*
+
 COPY apps/api/ ./
-RUN pip install ".[postgres]"
+RUN pip install ".[postgres,ocr]"
 
 # The from-scratch Vortex GPT (vortex/ package). Checkpoints are mounted at runtime.
 ARG INSTALL_NATIVE=true

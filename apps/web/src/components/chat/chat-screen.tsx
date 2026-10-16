@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, FolderOpen, X } from "lucide-react";
+import { AlertTriangle, Brain, FolderOpen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   ApiError,
+  type Attachment,
   type Conversation,
   errorMessage,
   type Message,
@@ -27,6 +28,7 @@ type ChatBody = {
   think?: boolean;
   regenerate?: boolean;
   edit_message_id?: string;
+  file_ids?: string[];
 };
 
 type Streaming = { completionId: string | null; content: string; reasoning: string };
@@ -47,6 +49,7 @@ export function ChatScreen() {
   const [mode, setMode] = useState<Mode>("conversar");
   const [model, setModel] = useState<string | null>(null);
   const [think, setThink] = useState(false);
+  const [memoryNote, setMemoryNote] = useState<string | null>(null);
 
   const composer = useRef<ComposerHandle>(null);
   const streamToken = useRef(0);
@@ -133,6 +136,7 @@ export function ChatScreen() {
           const d = data as Record<string, unknown>;
           if (event === "meta") {
             completionRef.current = d.completion_id as string;
+            if (d.memory_saved) setMemoryNote(d.memory_saved as string);
             setStreaming((s) => s && { ...s, completionId: d.completion_id as string });
             setConv(d.conversation as Conversation);
             const um = d.user_message as Message | null;
@@ -178,8 +182,9 @@ export function ChatScreen() {
     [refreshConversations, refreshProjects, refreshUsage],
   );
 
-  const send = async (text: string) => {
+  const send = async (text: string, attachments: Attachment[] = []) => {
     if (streaming) return;
+    setMemoryNote(null);
     const optimistic: Message = {
       id: `tmp-${Date.now()}`,
       conversation_id: conv?.id ?? "",
@@ -189,6 +194,8 @@ export function ChatScreen() {
       model: null,
       status: "ok",
       feedback: null,
+      attachments,
+      sources: [],
       created_at: new Date().toISOString(),
     };
     setMessages((ms) => [...ms, optimistic]);
@@ -209,7 +216,7 @@ export function ChatScreen() {
         return;
       }
     }
-    await runChat(id, { content: text, model, mode, think });
+    await runChat(id, { content: text, model, mode, think, file_ids: attachments.map((a) => a.id) });
   };
 
   const stop = () => {
@@ -278,6 +285,8 @@ export function ChatScreen() {
       reasoning: streaming.reasoning || null,
       status: "ok",
       feedback: null,
+      attachments: [],
+      sources: [],
       streaming: true,
     });
   }
@@ -297,7 +306,7 @@ export function ChatScreen() {
   const composerEl = (
     <Composer
       ref={composer}
-      onSend={(t) => void send(t)}
+      onSend={(t, files) => void send(t, files)}
       onStop={stop}
       streaming={!!streaming}
       think={think}
@@ -307,6 +316,7 @@ export function ChatScreen() {
       models={models}
       model={model}
       onModel={pickModel}
+      conversationId={conv?.id ?? null}
       compact={!isHome}
     />
   );
@@ -332,6 +342,7 @@ export function ChatScreen() {
             onPick={(text, m) => {
               setMode(m);
               composer.current?.setText(text);
+              if (/arquivo|PDF/i.test(text)) composer.current?.pickFiles();
             }}
           />
           {errorBanner}
@@ -367,6 +378,20 @@ export function ChatScreen() {
       </div>
       <motion.div layout className="mx-auto w-full max-w-3xl px-4 pb-4 sm:px-6">
         {errorBanner}
+        {memoryNote && (
+          <div role="status" className="mx-auto mb-3 flex w-full items-center gap-2 rounded-xl border border-accent-2/40 bg-accent-2/10 px-4 py-2 text-sm">
+            <Brain className="size-4 shrink-0 text-accent-2" />
+            <span className="flex-1">
+              Guardei na memória: <strong>{memoryNote}</strong>{" "}
+              <Link href="/memoria" className="text-accent underline">
+                ver memória
+              </Link>
+            </span>
+            <button type="button" onClick={() => setMemoryNote(null)} aria-label="Fechar aviso">
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
         {composerEl}
         <p className="mt-2 text-center text-[11px] text-subtle">
           O Vortex roda no seu servidor e pode cometer erros. Confira informações importantes.

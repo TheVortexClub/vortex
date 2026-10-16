@@ -84,7 +84,6 @@ export const SECTIONS: Section[] = [
     label: "Memória",
     href: "/memoria",
     icon: Brain,
-    step: 5,
     description: "Memória de longo prazo que você pode ver, editar, apagar e desligar.",
   },
   {

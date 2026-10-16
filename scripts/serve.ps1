@@ -36,7 +36,7 @@ if (-not (Test-Path $python)) {
   Write-Host "[vortex] criando ambiente Python em $venv ..."
   if (Get-Command py -ErrorAction SilentlyContinue) { py -3 -m venv $venv } else { python -m venv $venv }
 }
-& $python -m pip install --quiet --disable-pip-version-check -e $api
+& $python -m pip install --quiet --disable-pip-version-check -e "$api[ocr]"
 
 $env:VORTEX_LOCAL_MODE = if ($Local) { "true" } else { "false" }
 $env:VORTEX_DATA_DIR = Join-Path $api "data"

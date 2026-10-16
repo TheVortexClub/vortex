@@ -63,6 +63,15 @@ On a 3B model a CPU-only notebook answers at about 5 tokens/s, and people's requ
 by Ollama. Use a 7B base (`.\scripts\create-model.ps1 -Base qwen2.5:7b-instruct-q4_K_M`) when you
 have 16 GB+ RAM.
 
+Files you attach are searched by keyword out of the box. For search by meaning (better for long
+documents), download the embedding model once (about 270 MB):
+
+```powershell
+ollama pull nomic-embed-text
+```
+
+Files uploaded after that are indexed by meaning automatically.
+
 API only (no website): `.\scripts\run-api.ps1`.
 
 Keep it running 24/7 (Ollama, auto-start, power, firewall, fixed IP): see
@@ -146,7 +155,7 @@ for `vortex-v0.3`. Every value accepts `${ENV_VAR:-default}`.
 cd apps/api
 python -m venv .venv && .venv/Scripts/activate     # Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev]"
-pytest              # 78 tests; no model needed (fake backends)
+pytest              # 104 tests; no model needed (fake backends)
 ruff check .
 VORTEX_MOCK_BACKEND=true uvicorn vortex_api.main:create_app --factory --reload   # simulated answers
 ```
@@ -166,7 +175,7 @@ npm run test:e2e    # Playwright UI tests (uses installed Edge/Chrome, simulated
 2. ✅ Model serving + OpenAI-compatible `/v1` API with streaming, cancel, usage, rate limit
 3. ✅ Chat interface (mockup layout, streaming, history, Ctrl+K, light/dark, mobile) + accounts
 4. ✅ Projects, usage & performance dashboard, settings, server admin
-5. File upload, OCR, RAG, memory
+5. ✅ Files (PDF, Word, Excel, CSV, code, images) with OCR, search over files (RAG), memory
 6. Tools: web search (SearXNG), image generation, code sandbox
 7. Agents and automations
 8. Video generation, library, explore, polish

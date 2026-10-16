@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     allow_registration: bool = True
     cookie_secure: bool = False  # set true behind HTTPS
 
+    # Files
+    max_upload_mb: int = 25
+    rag_context_chars: int = 8000  # file text given to the model per answer
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

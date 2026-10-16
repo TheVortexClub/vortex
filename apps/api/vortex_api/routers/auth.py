@@ -18,6 +18,7 @@ from ..auth import (
 from ..errors import VortexError
 from ..models_db import User
 from ..services.accounts import account_users_count, admins_count, delete_user_data
+from ..services.files import files_root
 from ..services.workspace import registration_open
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -186,7 +187,7 @@ async def delete_account(
             "Você é o único administrador. Torne outra pessoa administradora antes de sair.",
             code="last_admin",
         )
-    await delete_user_data(session, user.id)
+    await delete_user_data(session, user.id, files_root(request.app.state))
     await session.commit()
     response = Response(status_code=204)
     clear_session_cookie(response)

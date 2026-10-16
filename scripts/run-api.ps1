@@ -21,7 +21,7 @@ if (-not (Test-Path $python)) {
   Write-Host "[vortex] creating virtualenv in $venv ..."
   if (Get-Command py -ErrorAction SilentlyContinue) { py -3 -m venv $venv } else { python -m venv $venv }
 }
-& $python -m pip install --quiet --disable-pip-version-check -e "$api[dev]"
+& $python -m pip install --quiet --disable-pip-version-check -e "$api[dev,ocr]"
 
 if ($Mock) { $env:VORTEX_MOCK_BACKEND = "true" }
 $bind = if ($Lan) { "0.0.0.0" } else { "127.0.0.1" }

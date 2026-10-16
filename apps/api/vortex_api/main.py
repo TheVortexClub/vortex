@@ -3,6 +3,7 @@
 uvicorn vortex_api.main:create_app --factory --reload
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -22,7 +23,7 @@ from .db import Base, make_engine
 from .errors import install_error_handlers
 from .ratelimit import RateLimitMiddleware
 from .registry import Registry
-from .routers import admin, auth, conversations, projects, system, usage, v1
+from .routers import admin, auth, conversations, files, memory, projects, system, usage, v1
 from .routers import settings as settings_routes
 from .services.chat import GenerationRegistry
 from .services.usage import UsageRecorder
@@ -57,10 +58,18 @@ def create_app(
         app.state.usage = UsageRecorder(sessions)
         app.state.gateway = ModelGateway(registry, settings, transports)
         app.state.generations = GenerationRegistry()
+        app.state.background = set()  # file processing tasks
+        app.state.processing_slots = asyncio.Semaphore(2)
         log.info("Vortex API %s ready (%d models)", __version__, len(registry.models))
         try:
             yield
         finally:
+            # Stop file processing and let it unwind before the database goes away.
+            tasks = list(app.state.background)
+            for task in tasks:
+                task.cancel()
+            if tasks:
+                await asyncio.wait(tasks, timeout=10)
             await app.state.gateway.aclose()
             await engine.dispose()
 
@@ -88,6 +97,8 @@ def create_app(
     app.include_router(auth.router)
     app.include_router(conversations.router)
     app.include_router(projects.router)
+    app.include_router(files.router)
+    app.include_router(memory.router)
     app.include_router(settings_routes.router)
     app.include_router(usage.router)
     app.include_router(admin.router)

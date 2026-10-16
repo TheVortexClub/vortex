@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  FileText,
   GitBranch,
   Pencil,
   RefreshCw,
@@ -13,12 +14,15 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { useState } from "react";
-import type { Message } from "@/lib/api";
+import { formatSize, type Message } from "@/lib/api";
 import { copyText, splitThinking } from "@/lib/text";
 import { VortexMark } from "../brand";
 import { Markdown } from "./markdown";
 
-export type DisplayMessage = Pick<Message, "id" | "role" | "content" | "reasoning" | "status" | "feedback"> & {
+export type DisplayMessage = Pick<
+  Message,
+  "id" | "role" | "content" | "reasoning" | "status" | "feedback" | "attachments" | "sources"
+> & {
   streaming?: boolean;
 };
 
@@ -85,6 +89,22 @@ function UserMessage({ message, actions }: { message: DisplayMessage; actions: A
 
   return (
     <div className="group flex max-w-[85%] flex-col items-end gap-1">
+      {message.attachments.length > 0 && (
+        <ul className="flex flex-wrap justify-end gap-2" aria-label="Anexos">
+          {message.attachments.map((a) => (
+            <li key={a.id}>
+              <a
+                href={`/api/files/${a.id}/content`}
+                className="flex items-center gap-2 rounded-xl border border-line bg-elev/70 px-3 py-1.5 text-xs hover:border-accent"
+              >
+                <FileText className="size-4 text-accent" />
+                <span className="max-w-48 truncate">{a.name}</span>
+                <span className="text-subtle">{formatSize(a.size)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/30 bg-accent/15 px-4 py-2.5 text-[15px] leading-relaxed">
         {message.content}
       </div>
@@ -136,6 +156,22 @@ function AssistantMessage({ message, isLast, actions }: { message: DisplayMessag
               Pensando...
             </p>
           )
+        )}
+        {message.sources.length > 0 && !message.streaming && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Fontes">
+            <span className="text-subtle">Fontes:</span>
+            {message.sources.map((s) => (
+              <a
+                key={`${s.file_id}-${s.page}`}
+                href={`/api/files/${s.file_id}/content`}
+                className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-muted hover:border-accent hover:text-fg"
+              >
+                <FileText className="size-3" />
+                {s.name}
+                {s.page ? `, p. ${s.page}` : ""}
+              </a>
+            ))}
+          </div>
         )}
         {message.status === "cancelled" && !message.streaming && (
           <p className="mt-2 text-xs text-warn">Resposta interrompida.</p>

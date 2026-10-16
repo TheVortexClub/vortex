@@ -1,7 +1,18 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -82,6 +93,10 @@ class Message(Base):
     model: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(16), default="ok")  # ok | cancelled | error
     feedback: Mapped[int | None] = mapped_column(Integer)  # 1 like, -1 dislike
+    # [{id, name, kind, size}] files sent with this message
+    attachments: Mapped[list | None] = mapped_column(JSON)
+    # [{file_id, name, page}] file passages the answer was based on
+    sources: Mapped[list | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -126,3 +141,63 @@ class ServerSetting(Base):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(Text)
+
+
+class File(Base):
+    """An uploaded file: the original on disk plus its extracted text (in FileChunk)."""
+
+    __tablename__ = "files"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("projects.id", ondelete="SET NULL"), index=True
+    )
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("conversations.id", ondelete="SET NULL"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    kind: Mapped[str] = mapped_column(String(16))  # pdf | docx | xlsx | csv | text | image
+    mime: Mapped[str] = mapped_column(String(100))
+    size: Mapped[int] = mapped_column(Integer)
+    path: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(16), default="processing")  # processing|ready|error
+    error: Mapped[str | None] = mapped_column(Text)
+    pages: Mapped[int | None] = mapped_column(Integer)
+    chars: Mapped[int] = mapped_column(Integer, default=0)
+    ocr: Mapped[bool] = mapped_column(Boolean, default=False)
+    embedded: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FileChunk(Base):
+    """A piece of a file's text, with its embedding when the embedding model is available."""
+
+    __tablename__ = "file_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    file_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("files.id", ondelete="CASCADE"), index=True
+    )
+    idx: Mapped[int] = mapped_column(Integer)
+    page: Mapped[int | None] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
+
+
+class Memory(Base):
+    """A long-term fact about the user that the Vortex remembers across conversations."""
+
+    __tablename__ = "memories"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    content: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | chat
+    conversation_id: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -53,6 +53,8 @@ test("send, stream, persist, regenerate, like and search", async ({ page }) => {
   await expect(page.getByText(/Você disse: linha 1\s+linha 2/)).toBeVisible();
 
   await page.getByRole("button", { name: "Gerar novamente" }).click();
+  await expect(page.getByRole("button", { name: "Parar resposta" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Gerar novamente" })).toBeVisible(); // new answer saved
   await expect(page.getByText(/Você disse: linha 1/)).toHaveCount(1);
 
   const like = page.getByRole("button", { name: "Gostei" }).last();

@@ -4,6 +4,7 @@ import { ArrowLeft, FolderOpen, MessageSquarePlus, MessageSquareText, Pencil, Pi
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { ProjectFiles } from "@/components/project-files";
 import { ProjectForm } from "@/components/project-form";
 import { Button, PROJECT_COLORS } from "@/components/ui";
 import { useWorkspace } from "@/components/workspace";
@@ -109,6 +110,8 @@ export default function ProjectPage() {
             </Link>
           ))}
         </div>
+
+        <ProjectFiles projectId={project.id} />
       </div>
       {editing && (
         <ProjectForm

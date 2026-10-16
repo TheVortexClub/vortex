@@ -26,8 +26,13 @@ export type Message = {
   model: string | null;
   status: "ok" | "cancelled" | "error";
   feedback: number | null;
+  attachments: Attachment[];
+  sources: Source[];
   created_at: string;
 };
+
+export type Attachment = { id: string; name: string; kind: FileKind; size: number };
+export type Source = { file_id: string; name: string; page: number | null };
 
 export type ModelInfo = {
   id: string;
@@ -187,3 +192,65 @@ export type ServerInfo = {
   conversations: number;
   messages: number;
 };
+
+// ---------------------------------------------------------------- step 5
+
+export type FileKind = "pdf" | "docx" | "xlsx" | "csv" | "text" | "image";
+
+export type FileInfo = {
+  id: string;
+  name: string;
+  kind: FileKind;
+  mime: string;
+  size: number;
+  status: "processing" | "ready" | "error";
+  error: string | null;
+  pages: number | null;
+  chars: number;
+  ocr: boolean;
+  embedded: boolean;
+  project_id: string | null;
+  conversation_id: string | null;
+  created_at: string;
+};
+
+export type MemoryItem = {
+  id: string;
+  content: string;
+  source: "manual" | "chat";
+  conversation_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const ACCEPTED_FILES =
+  ".pdf,.docx,.xlsx,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,.log,.py,.js,.ts,.tsx,.jsx,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.sql,.sh,.css,.html,.png,.jpg,.jpeg,.webp,.bmp";
+
+/** Upload one file; resolves when the server has stored it (text extraction continues in the background). */
+export async function uploadFile(
+  file: File,
+  target: { project_id?: string | null; conversation_id?: string | null } = {},
+): Promise<FileInfo> {
+  const form = new FormData();
+  form.append("file", file);
+  if (target.project_id) form.append("project_id", target.project_id);
+  if (target.conversation_id) form.append("conversation_id", target.conversation_id);
+  const res = await fetch("/api/files", { method: "POST", body: form, credentials: "same-origin" });
+  if (!res.ok) throw await toApiError(res);
+  return (await res.json()) as FileInfo;
+}
+
+/** Poll until the server finished reading the file. */
+export async function waitForFile(id: string, signal?: AbortSignal): Promise<FileInfo> {
+  for (;;) {
+    const info = await api<FileInfo>(`/api/files/${id}`);
+    if (info.status !== "processing" || signal?.aborted) return info;
+    await new Promise((r) => setTimeout(r, 800));
+  }
+}
+
+export function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}

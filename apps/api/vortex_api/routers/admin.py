@@ -13,6 +13,7 @@ from ..auth import LOCAL_EMAIL, get_session, require_admin
 from ..errors import VortexError
 from ..models_db import Conversation, Message, User
 from ..services.accounts import admins_count, delete_user_data
+from ..services.files import files_root
 from ..services.workspace import registration_open, set_server_setting
 from .conversations import iso
 
@@ -122,6 +123,7 @@ async def update_user(
 @router.delete("/users/{user_id}", status_code=204, summary="Delete an account and its data")
 async def delete_user(
     user_id: str,
+    request: Request,
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
@@ -130,6 +132,6 @@ async def delete_user(
             400, "Use Configurações > Dados para apagar a sua própria conta", code="self"
         )
     await _target(session, user_id)
-    await delete_user_data(session, user_id)
+    await delete_user_data(session, user_id, files_root(request.app.state))
     await session.commit()
     return Response(status_code=204)

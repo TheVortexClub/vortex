@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, get_session
 from ..errors import VortexError
-from ..models_db import Conversation, Message, Project, User
+from ..models_db import Conversation, File, Memory, Message, Project, User
 from ..services.accounts import delete_conversations
 from ..services.workspace import TOOL_IDS, tool_catalog, user_settings
 from .conversations import conversation_out, message_out
@@ -100,11 +100,20 @@ async def export_data(
     for m in messages:
         by_conv.setdefault(m.conversation_id, []).append(message_out(m))
     projects = (await session.scalars(select(Project).where(Project.user_id == user.id))).all()
+    memories = (await session.scalars(select(Memory).where(Memory.user_id == user.id))).all()
+    files = (await session.scalars(select(File).where(File.user_id == user.id))).all()
     data = {
         "exported_at": datetime.now(UTC).isoformat(),
         "user": {"email": user.email, "name": user.name},
         "settings": settings_out(await user_settings(session, user.id)),
         "projects": [project_out(p) for p in projects],
+        "memories": [
+            {"content": m.content, "created_at": m.created_at.isoformat()} for m in memories
+        ],
+        "files": [
+            {"name": f.name, "kind": f.kind, "size": f.size, "project_id": f.project_id}
+            for f in files
+        ],
         "conversations": [
             {**conversation_out(c), "messages": by_conv.get(c.id, [])} for c in convs
         ],
