@@ -1,0 +1,2 @@
+# vortex
+a personal ai
