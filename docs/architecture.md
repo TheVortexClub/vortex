@@ -9,10 +9,11 @@ calls unless the user turns on web search.
 
 ```
                  ┌───────────────────────────── browser ─────────────────────────────┐
-                 │  apps/web  (Next.js App Router · TS · Tailwind · shadcn · Framer) │
+                 │  apps/web  (Next.js App Router · TS · Tailwind · Framer Motion)   │
+                 │  server.mjs: serves the site, forwards /api and /v1 (real IP,     │
+                 │  no stream timeout) → one address for every device                │
                  └───────────────┬───────────────────────────────────────────────────┘
-                                 │ HTTPS (cookie session / short-lived JWT)
-                                 │ SSE token streaming
+                                 │ cookie session (short-lived JWT) · SSE streaming
                  ┌───────────────▼───────────────────────────────────────────────────┐
                  │  apps/api  (FastAPI, async)                                       │
                  │                                                                   │
@@ -43,7 +44,7 @@ calls unless the user turns on web search.
 | Model identity | `models/registry.yaml` maps the public id `vortex-v0.2.1` to an upstream model + system prompt + defaults | New versions (v0.3, LoRA fine-tunes) are added by config only. Clients never see the upstream name. |
 | Own API | FastAPI with `/v1/chat/completions`, `/v1/models`, `/v1/embeddings` | Any OpenAI SDK/tool works by pointing `base_url` at Vortex. No API key needed. |
 | Streaming | SSE (OpenAI chunk format) + `POST /v1/chat/completions/{id}/cancel` | SSE works with every OpenAI client; cancel powers the UI "stop" button. Client disconnect also aborts upstream generation. |
-| Auth | `VORTEX_LOCAL_MODE=true` (single user, no login) now; argon2 accounts + cookie sessions in step 3 | Zero-friction self-hosting; multi-user when needed. |
+| Auth | `VORTEX_LOCAL_MODE=true` (single user, no login) or accounts: argon2 passwords + short-lived JWT in an httpOnly cookie (Bearer for API clients) | One notebook can serve everyone; each user sees only their own chats. |
 | Storage | SQLite (aiosqlite) by default, Postgres via `--profile postgres`; Alembic migrations | One-file install, scales up without code changes. |
 | Vectors | sqlite-vec (step 5) | Same file as the main DB; Chroma optional. |
 | Offline dev / CI | `VORTEX_MOCK_BACKEND=true` | Run the API and UI with no model downloaded; tests use it. |
@@ -96,8 +97,8 @@ Implemented in step 2 (✅) and planned (⏳):
 | `POST /v1/embeddings` | ✅ |
 | `GET /api/models` (UI metadata: badge, description) | ✅ |
 | `GET /api/usage` (tokens, latency, tokens/s) | ✅ summary; GPU/CPU/RAM in step 4 |
-| `/api/conversations`, `/api/messages` | ⏳ step 3 |
-| `/api/auth/*` (argon2 accounts, sessions) | ⏳ step 3 |
+| `/api/conversations`, `/api/messages` (history, chat SSE, regenerate, edit, branch, export) | ✅ step 3 |
+| `/api/auth/*` (argon2 accounts, JWT cookie or Bearer) | ✅ step 3 |
 | `/api/projects`, `/api/settings` | ⏳ step 4 |
 | `/api/files`, `/api/memory` | ⏳ step 5 |
 | `/api/tools` | ⏳ step 6 |

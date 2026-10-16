@@ -36,47 +36,62 @@ See [docs/architecture.md](docs/architecture.md) for the design and the roadmap.
 | GPU | none (CPU works) | NVIDIA 8 GB+ VRAM |
 | Software | Python 3.11+ and [Ollama](https://ollama.com), or Docker | |
 
-### Option A: run on your notebook (Windows, no Docker)
+### Option A: your notebook is the server (Windows, no Docker)
+
+One computer runs everything: the model, the API and the website. Everyone else just opens the
+site in a browser (phone, tablet, other PCs) and creates their own account. Nobody else needs to
+install anything.
 
 ```powershell
-# 1. Build the Vortex model in your local Ollama (uses llama3.2:3b, fast on CPU)
+# 1. Once: build the Vortex model in Ollama (llama3.2:3b, fast on CPU)
 .\scripts\create-model.ps1
 
-# 2. (optional) Train the from-scratch GPT so vortex-native works
-pip install -r requirements.txt
-python train.py
-
-# 3. Start the API at http://127.0.0.1:8000  (Swagger UI: /docs)
-.\scripts\run-api.ps1                # add -Lan to reach it from your phone/other PCs
+# 2. Start the server
+.\scripts\serve.ps1
 ```
 
-On a 3B model a CPU-only notebook answers at a few tokens per second. Use a 7B base
-(`.\scripts\create-model.ps1 -Base qwen2.5:7b-instruct-q4_K_M`) when you have 16 GB+ RAM.
+`serve.ps1` prints the addresses to share, for example `http://192.168.68.57:3000`. When Windows
+asks, allow Node.js on **private networks**. Each person signs up with e-mail and password and only
+sees their own conversations. Use `-Local` to run just for yourself without login, and `-Rebuild`
+after updating the code.
 
-To use `vortex-native` in the API, install PyTorch into the API environment:
-`pip install -e "apps/api[native]"`.
+To let people outside your Wi-Fi in, put the notebook behind a tunnel such as Tailscale or
+Cloudflare Tunnel (not set up by Vortex), and keep `VORTEX_ALLOW_REGISTRATION=false` once everyone
+has an account.
+
+On a 3B model a CPU-only notebook answers at about 5 tokens/s, and people's requests are queued
+by Ollama. Use a 7B base (`.\scripts\create-model.ps1 -Base qwen2.5:7b-instruct-q4_K_M`) when you
+have 16 GB+ RAM.
+
+API only (no website): `.\scriptsun-api.ps1`.
 
 ### Option B: Docker (one command)
 
 ```bash
-cp .env.example .env
+cp .env.example .env      # server mode: VORTEX_LOCAL_MODE=false and WEB_BIND=0.0.0.0
 docker compose up --build
 ```
 
 On first start, `ollama-init` downloads the base model (about 5 GB) and builds `vortex:0.2.1`.
-
-- API: http://localhost:8000 (docs at `/docs`)
-- Web: http://localhost:3000
+Open http://localhost:3000 (API docs at http://localhost:3000/docs).
 
 Profiles: `--profile postgres` (Postgres instead of SQLite), `--profile llamacpp` (serve a GGUF
 fine-tune), and `-f infra/compose/gpu.yaml` for NVIDIA GPUs (adds the `vllm` profile).
 
-All ports bind to `127.0.0.1`. Nothing is exposed to your network unless you change it.
+The API is never exposed directly: the website forwards `/api` and `/v1` to it, so there is a
+single address to share.
 
 ### Using the API
 
 No API key needed. The API follows the OpenAI request format, so existing apps and SDKs can talk to
 **your** server by changing the base URL. Requests never go to OpenAI or anyone else.
+
+In server mode, log in first and send the token you get back:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login -H "Content-Type: application/json"   -d '{"email": "voce@example.com", "password": "..."}'        # → {"access_token": "..."}
+curl http://localhost:3000/v1/models -H "Authorization: Bearer <access_token>"
+```
 
 ```bash
 # models
@@ -112,7 +127,10 @@ console.log((await res.json()).choices[0].message.content);
 ```
 
 Other endpoints: `GET /health`, `GET /api/health` (model backend status), `GET /api/models`
-(names, badges, descriptions for the UI), `GET /api/usage` (tokens, latency, tokens/s).
+(names, badges, descriptions for the UI), `GET /api/usage` (tokens, latency, tokens/s),
+`/api/auth/*` (accounts), and `/api/conversations` (history: create, list/search, rename, pin,
+delete, branch, export to Markdown, and `POST /api/conversations/{id}/chat` to send, regenerate or
+edit with a streamed answer). Full reference at `/docs`.
 
 ### Adding a model version
 
@@ -125,7 +143,7 @@ for `vortex-v0.3`. Every value accepts `${ENV_VAR:-default}`.
 cd apps/api
 python -m venv .venv && .venv/Scripts/activate     # Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev]"
-pytest              # 48 tests; no model needed (fake backends)
+pytest              # 67 tests; no model needed (fake backends)
 ruff check .
 VORTEX_MOCK_BACKEND=true uvicorn vortex_api.main:create_app --factory --reload   # simulated answers
 ```
@@ -135,15 +153,16 @@ Web app:
 ```bash
 cd apps/web
 npm install
-npm run dev         # http://localhost:3000
+npm run dev         # http://localhost:3000 (needs the API on :8000)
+npm run test:e2e    # Playwright UI tests (uses installed Edge/Chrome, simulated model)
 ```
 
 ### Roadmap
 
 1. ✅ Repo scaffold + docker compose (web, api, ollama, db)
 2. ✅ Model serving + OpenAI-compatible `/v1` API with streaming, cancel, usage, rate limit
-3. ⏳ Core chat UI (sidebar, composer, streaming messages, history) + accounts (argon2)
-4. Right panel, projects, usage dashboard, settings
+3. ✅ Chat interface (mockup layout, streaming, history, Ctrl+K, light/dark, mobile) + accounts
+4. ⏳ Projects, usage dashboard, settings
 5. File upload, OCR, RAG, memory
 6. Tools: web search (SearXNG), image generation, code sandbox
 7. Agents and automations
@@ -227,14 +246,14 @@ Add `.txt` files to `data/`. Every file in that folder is used for training.
 ```
 apps/
   api/            FastAPI platform backend (OpenAI-compatible /v1 + /api)
-  web/            Next.js interface
+  web/            Next.js interface (server.mjs: one address for site + API)
 models/
   registry.yaml   model ids → backends (Ollama, llama.cpp, vLLM, native)
   Modelfile       builds vortex:0.2.1 in Ollama
   prompts/        Vortex identity and tone
   finetune/       LoRA/QLoRA (Unsloth, Axolotl) → GGUF
 infra/            Dockerfiles, compose overrides, Ollama init
-scripts/          Windows helpers (create-model.ps1, run-api.ps1)
+scripts/          Windows helpers (create-model.ps1, serve.ps1, run-api.ps1)
 docs/             architecture
 vortex/           from-scratch GPT (config, tokenizer, model, data, engine)
 train.py          training script

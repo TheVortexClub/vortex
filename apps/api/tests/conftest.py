@@ -18,6 +18,7 @@ def make_settings(tmp_path: Path, **overrides) -> Settings:
         "db_auto_create": True,
         "rate_limit_per_minute": 0,
         "registry_path": REGISTRY,
+        "data_dir": tmp_path,
         **overrides,
     }
     return Settings(_env_file=None, **values)
@@ -27,6 +28,15 @@ def make_settings(tmp_path: Path, **overrides) -> Settings:
 def client(tmp_path):
     with TestClient(create_app(make_settings(tmp_path))) as c:
         yield c
+
+
+def parse_events(text: str) -> list[tuple[str, dict]]:
+    """Named SSE events of the /api chat stream: [(event, data), ...]."""
+    out = []
+    for block in text.strip().split("\n\n"):
+        lines = dict(line.split(": ", 1) for line in block.splitlines() if ": " in line)
+        out.append((lines["event"], json.loads(lines["data"])))
+    return out
 
 
 def parse_sse(text: str) -> list:

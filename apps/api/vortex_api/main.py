@@ -15,13 +15,14 @@ from . import (
     __version__,
     models_db,  # noqa: F401 - registers tables on Base.metadata
 )
+from .auth import load_secret
 from .backends import ModelGateway
 from .config import Settings, get_settings
 from .db import Base, make_engine
 from .errors import install_error_handlers
 from .ratelimit import RateLimitMiddleware
 from .registry import Registry
-from .routers import system, v1
+from .routers import auth, conversations, system, v1
 from .services.chat import GenerationRegistry
 from .services.usage import UsageRecorder
 
@@ -31,7 +32,8 @@ DESCRIPTION = """
 **Vortex v0.2.1** — Muito mais que um chatbot. Um universo de possibilidades.
 
 Self-hosted and OpenAI-compatible. No API key needed: point any OpenAI client at
-`http://localhost:8000/v1`.
+`http://localhost:8000/v1`. With accounts enabled (`VORTEX_LOCAL_MODE=false`), log in via
+`/api/auth/login` and send the session cookie (or `Authorization: Bearer <token>`).
 """
 
 
@@ -49,7 +51,9 @@ def create_app(
         if settings.db_auto_create:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-        app.state.usage = UsageRecorder(async_sessionmaker(engine, expire_on_commit=False))
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        app.state.sessions = sessions
+        app.state.usage = UsageRecorder(sessions)
         app.state.gateway = ModelGateway(registry, settings, transports)
         app.state.generations = GenerationRegistry()
         log.info("Vortex API %s ready (%d models)", __version__, len(registry.models))
@@ -67,6 +71,7 @@ def create_app(
     )
     app.state.settings = settings
     app.state.registry = registry
+    app.state.secret = load_secret(settings)
 
     app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.rate_limit_per_minute)
     app.add_middleware(
@@ -79,5 +84,7 @@ def create_app(
     )
     install_error_handlers(app)
     app.include_router(system.router)
+    app.include_router(auth.router)
+    app.include_router(conversations.router)
     app.include_router(v1.router)
     return app

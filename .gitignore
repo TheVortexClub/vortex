@@ -24,6 +24,9 @@ apps/api/data/
 # node
 node_modules/
 .next/
+.next-e2e/
+test-results/
+playwright-report/
 out/
 *.tsbuildinfo
 next-env.d.ts

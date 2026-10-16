@@ -57,6 +57,10 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
       LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://llamacpp:8080/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-http://vllm:8000/v1}
+      VORTEX_DATA_DIR: /app/data
+      # Trust X-Forwarded-For from the web container (per-IP rate limiting). The API port is
+      # only published on 127.0.0.1.
+      FORWARDED_ALLOW_IPS: "*"
     volumes:
       - api-data:/app/data
       - ./checkpoints:/app/native/checkpoints:ro   # python train.py output
@@ -71,10 +75,11 @@ services:
     build:
       context: .
       dockerfile: infra/docker/web.Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    environment:
+      API_INTERNAL_URL: http://api:8000
     ports:
-      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+      # Server for other devices: set WEB_BIND=0.0.0.0 (and VORTEX_LOCAL_MODE=false) in .env
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
     depends_on:
       api:
         condition: service_healthy

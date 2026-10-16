@@ -3,17 +3,29 @@
   "version": "0.2.1",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "node server.mjs",
     "build": "next build",
-    "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "start": "node server.mjs --prod",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "cmdk": "^1.1.1",
+    "framer-motion": "^12.23.12",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.544.0",
     "next": "^15.5.4",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^22.18.0",
     "@types/react": "^19.1.13",

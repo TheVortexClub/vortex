@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     request_timeout: float = 300.0
     mock_backend: bool = False
 
+    # Accounts (used when local_mode is false)
+    data_dir: Path = Path("data")
+    secret_key: str = ""  # empty: generated once and stored in data_dir/.secret_key
+    session_hours: int = 12
+    allow_registration: bool = True
+    cookie_secure: bool = False  # set true behind HTTPS
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

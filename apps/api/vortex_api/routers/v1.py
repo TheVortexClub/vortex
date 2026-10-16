@@ -3,9 +3,10 @@
 import time
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from ..auth import current_user
 from ..errors import VortexError
 from ..registry import ModelSpec
 from ..schemas import ChatCompletionRequest, EmbeddingRequest
@@ -16,7 +17,10 @@ from ..services.chat import (
     usage_from_response,
 )
 
-router = APIRouter(prefix="/v1", tags=["OpenAI-compatible"])
+# In local mode current_user is the built-in user; with accounts, a login is required.
+router = APIRouter(
+    prefix="/v1", tags=["OpenAI-compatible"], dependencies=[Depends(current_user)]
+)
 
 
 def _openai_model(spec: ModelSpec) -> dict[str, Any]:
