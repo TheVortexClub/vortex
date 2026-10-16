@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0912">
+<title>Vortex</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div>
+        <h1>Vortex</h1>
+        <p id="meta">loading model…</p>
+      </div>
+    </div>
+    <div class="controls">
+      <label class="temp" title="Creativity">
+        <span>temp</span>
+        <input id="temperature" type="range" min="0" max="1.5" step="0.1" value="0.7">
+        <output id="tempValue">0.7</output>
+      </label>
+      <button id="clear" class="ghost" type="button">Clear</button>
+    </div>
+  </header>
+
+  <main id="chat" class="chat">
+    <section id="empty" class="empty">
+      <div class="orb" aria-hidden="true"></div>
+      <h2>Hi, I'm Vortex.</h2>
+      <p>A personal AI trained from scratch in Python. I'm still small, but I learn from everything you put in my training data.</p>
+      <div class="chips">
+        <button type="button" class="chip">who are you?</button>
+        <button type="button" class="chip">tell me a joke</button>
+        <button type="button" class="chip">what is a neural network?</button>
+        <button type="button" class="chip">how do i write a loop in python?</button>
+      </div>
+    </section>
+  </main>
+
+  <form id="composer" class="composer" autocomplete="off">
+    <textarea id="input" rows="1" placeholder="Message Vortex…" maxlength="1000"></textarea>
+    <button id="send" type="submit" aria-label="Send">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
