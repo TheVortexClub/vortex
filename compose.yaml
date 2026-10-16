@@ -58,11 +58,18 @@ services:
       LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://llamacpp:8080/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-http://vllm:8000/v1}
       VORTEX_DATA_DIR: /app/data
+      VORTEX_SEARXNG_URL: http://searxng:8080
+      VORTEX_COMFYUI_URL: ${VORTEX_COMFYUI_URL:-http://host.docker.internal:8188}
       # Trust X-Forwarded-For from the web container (per-IP rate limiting). The API port is
       # only published on 127.0.0.1.
       FORWARDED_ALLOW_IPS: "*"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # reach a ComfyUI running on the host
     volumes:
       - api-data:/app/data
+      # Code sandbox (optional): lets the API start sandbox containers. This gives the API
+      # control of Docker on the host; only enable on a machine you control.
+      # - /var/run/docker.sock:/var/run/docker.sock
       - ./checkpoints:/app/native/checkpoints:ro   # python train.py output
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
@@ -83,6 +90,17 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Private web search for the "Pesquisar" toggle.
+  searxng:
+    image: ${SEARXNG_IMAGE:-searxng/searxng:latest}
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-troque-este-segredo}
+    volumes:
+      - ./infra/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "127.0.0.1:${SEARXNG_PORT:-8888}:8080"
     restart: unless-stopped
 
   db:

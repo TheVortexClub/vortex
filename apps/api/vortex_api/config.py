@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     max_upload_mb: int = 25
     rag_context_chars: int = 8000  # file text given to the model per answer
 
+    # Tools (each is off until its service is set up; see docs/ferramentas.md)
+    searxng_url: str = "http://127.0.0.1:8888"
+    comfyui_url: str = "http://127.0.0.1:8188"
+    image_checkpoint: str = "v1-5-pruned-emaonly.safetensors"
+    sandbox_image: str = "vortex-sandbox"
+    sandbox_timeout: int = 60  # seconds
+    sandbox_memory: str = "768m"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

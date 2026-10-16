@@ -19,6 +19,7 @@ import { readEvents } from "@/lib/sse";
 import { useWorkspace } from "../workspace";
 import { Composer, type ComposerHandle } from "./composer";
 import { ActionCards, Hero, ShowcaseCards, SuggestionChips } from "./home";
+import { RunContext } from "./markdown";
 import { type DisplayMessage, MessageView } from "./message-view";
 
 type ChatBody = {
@@ -29,6 +30,8 @@ type ChatBody = {
   regenerate?: boolean;
   edit_message_id?: string;
   file_ids?: string[];
+  web_search?: boolean;
+  tools?: boolean;
 };
 
 type Streaming = { completionId: string | null; content: string; reasoning: string };
@@ -39,7 +42,9 @@ export function ChatScreen() {
   const routeId = pathname.startsWith("/c/") ? decodeURIComponent(pathname.slice(3)) : null;
   const searchParams = useSearchParams();
   const newChatProject = routeId ? null : searchParams.get("projeto");
-  const { models, projects, refreshConversations, refreshProjects, refreshUsage } = useWorkspace();
+  const { models, projects, tools, refreshConversations, refreshProjects, refreshUsage } = useWorkspace();
+  const codeTool = tools.find((t) => t.id === "code");
+  const canRun = !!codeTool?.available && codeTool.enabled;
 
   const [conv, setConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -49,6 +54,8 @@ export function ChatScreen() {
   const [mode, setMode] = useState<Mode>("conversar");
   const [model, setModel] = useState<string | null>(null);
   const [think, setThink] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
+  const [toolsOn, setToolsOn] = useState(false);
   const [memoryNote, setMemoryNote] = useState<string | null>(null);
 
   const composer = useRef<ComposerHandle>(null);
@@ -196,6 +203,7 @@ export function ChatScreen() {
       feedback: null,
       attachments,
       sources: [],
+      tool: null,
       created_at: new Date().toISOString(),
     };
     setMessages((ms) => [...ms, optimistic]);
@@ -216,7 +224,15 @@ export function ChatScreen() {
         return;
       }
     }
-    await runChat(id, { content: text, model, mode, think, file_ids: attachments.map((a) => a.id) });
+    await runChat(id, {
+      content: text,
+      model,
+      mode,
+      think,
+      file_ids: attachments.map((a) => a.id),
+      web_search: webSearch,
+      tools: toolsOn,
+    });
   };
 
   const stop = () => {
@@ -231,7 +247,7 @@ export function ChatScreen() {
       while (out.length && out[out.length - 1].role === "assistant") out.pop();
       return out;
     });
-    void runChat(conv.id, { regenerate: true, model, think });
+    void runChat(conv.id, { regenerate: true, model, think, web_search: webSearch, tools: toolsOn });
   };
 
   const edit = (messageId: string, content: string) => {
@@ -287,6 +303,7 @@ export function ChatScreen() {
       feedback: null,
       attachments: [],
       sources: [],
+      tool: null,
       streaming: true,
     });
   }
@@ -311,6 +328,10 @@ export function ChatScreen() {
       streaming={!!streaming}
       think={think}
       onThink={setThink}
+      webSearch={webSearch}
+      onWebSearch={setWebSearch}
+      toolsOn={toolsOn}
+      onTools={setToolsOn}
       mode={mode}
       onClearMode={() => pickMode("conversar")}
       models={models}
@@ -356,6 +377,7 @@ export function ChatScreen() {
   return (
     <div className="flex h-full flex-col">
       <div ref={scroller} onScroll={onScroll} className="vx-scroll flex-1 overflow-y-auto">
+        <RunContext.Provider value={{ canRun, conversationId: conv?.id ?? null }}>
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6" aria-live="polite">
           {conv && <h1 className="sr-only">{conv.title}</h1>}
           {projectChip}
@@ -375,6 +397,7 @@ export function ChatScreen() {
               />
             ))}
         </div>
+        </RunContext.Provider>
       </div>
       <motion.div layout className="mx-auto w-full max-w-3xl px-4 pb-4 sm:px-6">
         {errorBanner}

@@ -68,7 +68,7 @@ TOOLS: list[dict[str, Any]] = [
 TOOL_IDS = {t["id"] for t in TOOLS}
 
 # Steps already delivered; bumped as each step lands.
-DELIVERED_STEP = 5
+DELIVERED_STEP = 6
 
 
 def tool_catalog(enabled: dict[str, bool]) -> list[dict[str, Any]]:

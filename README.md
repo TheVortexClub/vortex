@@ -155,7 +155,7 @@ for `vortex-v0.3`. Every value accepts `${ENV_VAR:-default}`.
 cd apps/api
 python -m venv .venv && .venv/Scripts/activate     # Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev]"
-pytest              # 104 tests; no model needed (fake backends)
+pytest              # 129 tests; no model needed (fake backends)
 ruff check .
 VORTEX_MOCK_BACKEND=true uvicorn vortex_api.main:create_app --factory --reload   # simulated answers
 ```
@@ -176,7 +176,7 @@ npm run test:e2e    # Playwright UI tests (uses installed Edge/Chrome, simulated
 3. ✅ Chat interface (mockup layout, streaming, history, Ctrl+K, light/dark, mobile) + accounts
 4. ✅ Projects, usage & performance dashboard, settings, server admin
 5. ✅ Files (PDF, Word, Excel, CSV, code, images) with OCR, search over files (RAG), memory
-6. Tools: web search (SearXNG), image generation, code sandbox
+6. ✅ Tools: web search (SearXNG), image generation (ComfyUI), isolated code runner — see [docs/ferramentas.md](docs/ferramentas.md)
 7. Agents and automations
 8. Video generation, library, explore, polish
 9. v1.0

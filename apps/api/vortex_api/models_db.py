@@ -95,8 +95,10 @@ class Message(Base):
     feedback: Mapped[int | None] = mapped_column(Integer)  # 1 like, -1 dislike
     # [{id, name, kind, size}] files sent with this message
     attachments: Mapped[list | None] = mapped_column(JSON)
-    # [{file_id, name, page}] file passages the answer was based on
+    # [{file_id, name, page}] file passages / [{type: "web", title, url}] pages the answer used
     sources: Mapped[list | None] = mapped_column(JSON)
+    # tool activity on this message, e.g. {"type": "image", "job_id": "..."}
+    tool: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -169,6 +171,7 @@ class File(Base):
     chars: Mapped[int] = mapped_column(Integer, default=0)
     ocr: Mapped[bool] = mapped_column(Boolean, default=False)
     embedded: Mapped[bool] = mapped_column(Boolean, default=False)
+    origin: Mapped[str] = mapped_column(String(16), default="upload")  # upload | image | code
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -201,3 +204,24 @@ class Memory(Base):
     conversation_id: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Job(Base):
+    """A slow tool run (image or video generation) processed in the background."""
+
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16))  # image | video
+    prompt: Mapped[str] = mapped_column(Text)
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="queued")  # queued|running|done|error
+    progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0..1
+    error: Mapped[str | None] = mapped_column(Text)
+    result_file_ids: Mapped[list] = mapped_column(JSON, default=list)
+    conversation_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

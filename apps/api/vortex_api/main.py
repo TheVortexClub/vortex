@@ -23,10 +23,22 @@ from .db import Base, make_engine
 from .errors import install_error_handlers
 from .ratelimit import RateLimitMiddleware
 from .registry import Registry
-from .routers import admin, auth, conversations, files, memory, projects, system, usage, v1
+from .routers import (
+    admin,
+    auth,
+    conversations,
+    files,
+    memory,
+    projects,
+    system,
+    tools,
+    usage,
+    v1,
+)
 from .routers import settings as settings_routes
 from .services.chat import GenerationRegistry
 from .services.usage import UsageRecorder
+from .services.web import check_public_url
 
 log = logging.getLogger("vortex")
 
@@ -60,6 +72,8 @@ def create_app(
         app.state.generations = GenerationRegistry()
         app.state.background = set()  # file processing tasks
         app.state.processing_slots = asyncio.Semaphore(2)
+        app.state.sandbox_slots = asyncio.Semaphore(2)
+        app.state.job_slots = asyncio.Semaphore(1)
         log.info("Vortex API %s ready (%d models)", __version__, len(registry.models))
         try:
             yield
@@ -82,6 +96,9 @@ def create_app(
     app.state.settings = settings
     app.state.registry = registry
     app.state.secret = load_secret(settings)
+    # Tool services (SearXNG, ComfyUI): tests replace the transport and the URL check.
+    app.state.tool_transport = (transports or {}).get("tools")
+    app.state.url_check = check_public_url
 
     app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.rate_limit_per_minute)
     app.add_middleware(
@@ -99,6 +116,7 @@ def create_app(
     app.include_router(projects.router)
     app.include_router(files.router)
     app.include_router(memory.router)
+    app.include_router(tools.router)
     app.include_router(settings_routes.router)
     app.include_router(usage.router)
     app.include_router(admin.router)

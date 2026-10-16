@@ -7,8 +7,6 @@ export function generateStaticParams() {
   return SECTIONS.filter((s) => s.step).map((s) => ({ section: s.slug }));
 }
 
-export const dynamicParams = false;
-
 export default async function SectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section: slug } = await params;
   const section = sectionBySlug(slug);

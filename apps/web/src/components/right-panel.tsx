@@ -24,16 +24,16 @@ import { VortexMark } from "./brand";
 import { PROJECT_COLORS } from "./ui";
 import { useWorkspace } from "./workspace";
 
-const TOOLS: { label: string; icon: LucideIcon; color: string }[] = [
-  { label: "Navegação Web", icon: Globe, color: "text-sky-400" },
-  { label: "Geração de Imagens", icon: ImageIcon, color: "text-amber-400" },
-  { label: "Geração de Vídeos", icon: Video, color: "text-blue-400" },
-  { label: "Análise de Arquivos", icon: FileText, color: "text-indigo-400" },
-  { label: "OCR e Texto", icon: ScanText, color: "text-teal-300" },
-  { label: "Dados e Planilhas", icon: BarChart3, color: "text-emerald-400" },
-  { label: "Programação", icon: Code2, color: "text-cyan-300" },
-  { label: "Agentes IA", icon: Bot, color: "text-sky-300" },
-  { label: "Automatizações", icon: Workflow, color: "text-violet-400" },
+const TOOLS: { id: string; label: string; icon: LucideIcon; color: string }[] = [
+  { id: "web_search", label: "Navegação Web", icon: Globe, color: "text-sky-400" },
+  { id: "image_generation", label: "Geração de Imagens", icon: ImageIcon, color: "text-amber-400" },
+  { id: "video_generation", label: "Geração de Vídeos", icon: Video, color: "text-blue-400" },
+  { id: "file_analysis", label: "Análise de Arquivos", icon: FileText, color: "text-indigo-400" },
+  { id: "ocr", label: "OCR e Texto", icon: ScanText, color: "text-teal-300" },
+  { id: "data", label: "Dados e Planilhas", icon: BarChart3, color: "text-emerald-400" },
+  { id: "code", label: "Programação", icon: Code2, color: "text-cyan-300" },
+  { id: "agents", label: "Agentes IA", icon: Bot, color: "text-sky-300" },
+  { id: "automations", label: "Automatizações", icon: Workflow, color: "text-violet-400" },
 ];
 
 function PanelCard({
@@ -93,7 +93,7 @@ function Ring({ percent }: { percent: number }) {
 }
 
 export function RightPanel() {
-  const { defaultModel, usage, projects, projectsLoaded } = useWorkspace();
+  const { defaultModel, usage, projects, projectsLoaded, tools } = useWorkspace();
   const fmt = (n: number) => n.toLocaleString("pt-BR");
 
   return (
@@ -128,17 +128,27 @@ export function RightPanel() {
 
       <PanelCard title="Ferramentas" action={{ label: "Ver todas", href: "/ferramentas" }}>
         <div className="grid grid-cols-3 gap-2">
-          {TOOLS.map(({ label, icon: Icon, color }) => (
-            <Link
-              key={label}
-              href="/ferramentas"
-              title={`${label} — em breve`}
-              className="flex h-[84px] flex-col items-center justify-center gap-2 rounded-xl border border-line bg-elev/60 px-1 text-center text-[11.5px] leading-tight text-muted transition hover:border-line-strong hover:text-fg"
-            >
-              <Icon className={`size-6 ${color}`} />
-              {label}
-            </Link>
-          ))}
+          {TOOLS.map(({ id, label, icon: Icon, color }) => {
+            const status = tools.find((t) => t.id === id);
+            const ready = !!status?.available && status.enabled;
+            return (
+              <Link
+                key={id}
+                href="/ferramentas"
+                title={status ? `${label}: ${ready ? "pronta" : status.reason}` : label}
+                className="relative flex h-[84px] flex-col items-center justify-center gap-2 rounded-xl border border-line bg-elev/60 px-1 text-center text-[11.5px] leading-tight text-muted transition hover:border-line-strong hover:text-fg"
+              >
+                {status && (
+                  <span
+                    className={`absolute right-1.5 top-1.5 size-1.5 rounded-full ${ready ? "bg-ok" : "bg-subtle/60"}`}
+                    aria-label={ready ? "pronta" : "indisponível"}
+                  />
+                )}
+                <Icon className={`size-6 ${color} ${ready ? "" : "opacity-60"}`} />
+                {label}
+              </Link>
+            );
+          })}
         </div>
       </PanelCard>
 

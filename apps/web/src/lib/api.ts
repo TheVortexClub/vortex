@@ -28,11 +28,14 @@ export type Message = {
   feedback: number | null;
   attachments: Attachment[];
   sources: Source[];
+  tool: { type: "image"; job_id: string } | null;
   created_at: string;
 };
 
 export type Attachment = { id: string; name: string; kind: FileKind; size: number };
-export type Source = { file_id: string; name: string; page: number | null };
+export type FileSource = { type?: undefined; file_id: string; name: string; page: number | null };
+export type WebSource = { type: "web"; n: number; title: string; url: string };
+export type Source = FileSource | WebSource;
 
 export type ModelInfo = {
   id: string;
@@ -254,3 +257,31 @@ export function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+// ---------------------------------------------------------------- step 6
+
+export type ToolStatus = ToolInfo & { reason: string };
+
+export type Job = {
+  id: string;
+  kind: "image" | "video";
+  prompt: string;
+  params: Record<string, unknown>;
+  status: "queued" | "running" | "done" | "error";
+  progress: number;
+  error: string | null;
+  result_file_ids: string[];
+  files: FileInfo[];
+  conversation_id: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export type CodeResult = {
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  duration: number;
+  timed_out: boolean;
+  images: FileInfo[];
+};

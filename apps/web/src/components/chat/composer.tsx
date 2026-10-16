@@ -29,6 +29,7 @@ import {
   uploadFile,
   waitForFile,
 } from "@/lib/api";
+import { useWorkspace } from "../workspace";
 import { MODES } from "./modes";
 
 export type ComposerHandle = {
@@ -54,6 +55,10 @@ type Props = {
   streaming: boolean;
   think: boolean;
   onThink: (on: boolean) => void;
+  webSearch: boolean;
+  onWebSearch: (on: boolean) => void;
+  toolsOn: boolean;
+  onTools: (on: boolean) => void;
   mode: Mode;
   onClearMode: () => void;
   models: ModelInfo[];
@@ -67,9 +72,35 @@ type Props = {
 const soon = (what: string, step: number) => `${what} — chega na etapa ${step}`;
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
-  { onSend, onStop, streaming, think, onThink, mode, onClearMode, models, model, onModel, conversationId, compact },
+  {
+    onSend,
+    onStop,
+    streaming,
+    think,
+    onThink,
+    webSearch,
+    onWebSearch,
+    toolsOn,
+    onTools,
+    mode,
+    onClearMode,
+    models,
+    model,
+    onModel,
+    conversationId,
+    compact,
+  },
   ref,
 ) {
+  const { tools } = useWorkspace();
+  const tool = (id: string) => tools.find((t) => t.id === id);
+  const web = tool("web_search");
+  const anyTool = ["image_generation", "code"].map(tool).find((t) => t?.available && t.enabled);
+  const toolsHelp = ["image_generation", "code"]
+    .map(tool)
+    .filter(Boolean)
+    .map((t) => `${t!.label}: ${t!.available ? (t!.enabled ? "pronta" : "desligada") : t!.reason}`)
+    .join("\n");
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -311,7 +342,22 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           )}
         </div>
 
-        <Toggle icon={Search} label="Pesquisar" disabled title={soon("Pesquisa na web (SearXNG local)", 6)} />
+        <Toggle
+          icon={Search}
+          label="Pesquisar"
+          active={webSearch}
+          disabled={!web?.available || !web.enabled}
+          onClick={() => onWebSearch(!webSearch)}
+          title={
+            !web
+              ? "Pesquisa na web"
+              : !web.enabled
+                ? "Pesquisa na web desligada em Configurações > Ferramentas"
+                : web.available
+                  ? "Pesquisar na web (SearXNG local) antes de responder, citando as fontes"
+                  : web.reason
+          }
+        />
         <Toggle
           icon={Brain}
           label="Pensar"
@@ -319,7 +365,15 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           onClick={() => onThink(!think)}
           title="O Vortex raciocina passo a passo antes de responder"
         />
-        <Toggle icon={Wrench} label="Ferramentas" disabled title={soon("Ferramentas", 6)} />
+        <Toggle
+          icon={Wrench}
+          label="Ferramentas"
+          active={toolsOn}
+          disabled={!anyTool}
+          onClick={() => onTools(!toolsOn)}
+          title={`Gerar imagens ("crie uma imagem de…") e escrever código executável
+${toolsHelp}`}
+        />
 
         <div className="ml-auto flex items-center gap-2">
           <div className="relative">

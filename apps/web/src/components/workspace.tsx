@@ -6,6 +6,7 @@ import {
   type Conversation,
   type ModelInfo,
   type Project,
+  type ToolStatus,
   type Usage,
   type UserSettings,
 } from "@/lib/api";
@@ -25,6 +26,8 @@ type WorkspaceValue = {
   refreshSettings: () => Promise<void>;
   usage: Usage | null;
   refreshUsage: () => Promise<void>;
+  tools: ToolStatus[];
+  refreshTools: () => Promise<void>;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   paletteOpen: boolean;
@@ -41,6 +44,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [tools, setTools] = useState<ToolStatus[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -68,15 +72,21 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setUsage(await api<Usage>("/api/usage").catch(() => null));
   }, []);
 
+  const refreshTools = useCallback(async () => {
+    const res = await api<{ data: ToolStatus[] }>("/api/tools").catch(() => null);
+    if (res) setTools(res.data);
+  }, []);
+
   useEffect(() => {
     void refreshConversations().catch(() => {});
     void refreshProjects().catch(() => {});
     void refreshSettings();
     void refreshUsage();
+    void refreshTools();
     api<{ data: ModelInfo[] }>("/api/models")
       .then((res) => setModels(res.data.filter((m) => m.kind === "chat")))
       .catch(() => {});
-  }, [refreshConversations, refreshProjects, refreshSettings, refreshUsage]);
+  }, [refreshConversations, refreshProjects, refreshSettings, refreshUsage, refreshTools]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -106,6 +116,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       refreshSettings,
       usage,
       refreshUsage,
+      tools,
+      refreshTools,
       sidebarOpen,
       setSidebarOpen,
       paletteOpen,
@@ -124,6 +136,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       refreshSettings,
       usage,
       refreshUsage,
+      tools,
+      refreshTools,
       sidebarOpen,
       paletteOpen,
     ],

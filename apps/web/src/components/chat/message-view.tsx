@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  ExternalLink,
   FileText,
   GitBranch,
   Pencil,
@@ -17,11 +18,12 @@ import { useState } from "react";
 import { formatSize, type Message } from "@/lib/api";
 import { copyText, splitThinking } from "@/lib/text";
 import { VortexMark } from "../brand";
+import { JobView } from "./job-view";
 import { Markdown } from "./markdown";
 
 export type DisplayMessage = Pick<
   Message,
-  "id" | "role" | "content" | "reasoning" | "status" | "feedback" | "attachments" | "sources"
+  "id" | "role" | "content" | "reasoning" | "status" | "feedback" | "attachments" | "sources" | "tool"
 > & {
   streaming?: boolean;
 };
@@ -157,20 +159,36 @@ function AssistantMessage({ message, isLast, actions }: { message: DisplayMessag
             </p>
           )
         )}
+        {message.tool?.type === "image" && <JobView jobId={message.tool.job_id} />}
         {message.sources.length > 0 && !message.streaming && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Fontes">
             <span className="text-subtle">Fontes:</span>
-            {message.sources.map((s) => (
-              <a
-                key={`${s.file_id}-${s.page}`}
-                href={`/api/files/${s.file_id}/content`}
-                className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-muted hover:border-accent hover:text-fg"
-              >
-                <FileText className="size-3" />
-                {s.name}
-                {s.page ? `, p. ${s.page}` : ""}
-              </a>
-            ))}
+            {message.sources.map((s) =>
+              s.type === "web" ? (
+                <a
+                  key={s.url}
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  title={s.url}
+                  className="inline-flex max-w-64 items-center gap-1 rounded-md border border-line px-2 py-0.5 text-muted hover:border-accent hover:text-fg"
+                >
+                  <span className="text-accent">[{s.n}]</span>
+                  <span className="truncate">{s.title}</span>
+                  <ExternalLink className="size-3 shrink-0" />
+                </a>
+              ) : (
+                <a
+                  key={`${s.file_id}-${s.page}`}
+                  href={`/api/files/${s.file_id}/content`}
+                  className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-muted hover:border-accent hover:text-fg"
+                >
+                  <FileText className="size-3" />
+                  {s.name}
+                  {s.page ? `, p. ${s.page}` : ""}
+                </a>
+              ),
+            )}
           </div>
         )}
         {message.status === "cancelled" && !message.streaming && (

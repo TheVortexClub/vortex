@@ -14,13 +14,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user, get_session
 from ..errors import BackendError, VortexError
-from ..models_db import DEFAULT_TITLE, Conversation, File, Memory, Message, Project, User, utcnow
+from ..models_db import (
+    DEFAULT_TITLE,
+    Conversation,
+    File,
+    Job,
+    Memory,
+    Message,
+    Project,
+    User,
+    utcnow,
+)
 from ..schemas import ChatCompletionRequest
 from ..services.chat import _prepend, build_chat_payload, new_id
 from ..services.files import build_context, delete_files
+from ..services.jobs import schedule_job, tool_client
 from ..services.memory import memories_context, memory_request
 from ..services.modes import Mode, system_instructions
+from ..services.tools import usable
 from ..services.usage import UsageRecord
+from ..services.web import WebError, web_context
 from ..services.workspace import user_settings
 
 router = APIRouter(prefix="/api", tags=["Conversations"])
@@ -52,6 +65,8 @@ class ChatRequest(BaseModel):
     regenerate: bool = False
     edit_message_id: str | None = None
     file_ids: list[str] = Field(default_factory=list, max_length=10)
+    web_search: bool = Field(False, description='"Pesquisar": search the web for this message')
+    tools: bool = Field(False, description='"Ferramentas": allow image generation and code')
 
 
 class BranchRequest(BaseModel):
@@ -93,6 +108,7 @@ def message_out(m: Message) -> dict[str, Any]:
         "feedback": m.feedback,
         "attachments": m.attachments or [],
         "sources": m.sources or [],
+        "tool": m.tool,
         "created_at": iso(m.created_at),
     }
 
@@ -100,6 +116,37 @@ def message_out(m: Message) -> dict[str, Any]:
 def make_title(text: str) -> str:
     line = re.sub(r"\s+", " ", text.strip().splitlines()[0] if text.strip() else "").strip()
     return (line[:60].rstrip() + "…") if len(line) > 60 else (line or DEFAULT_TITLE)
+
+
+IMAGE_REQUEST = re.compile(
+    r"^\s*(?:por favor,?\s*)?"
+    r"(?:crie|cria|gere|gera|fa[çc]a|desenhe|desenha|create|generate|make|draw)\s+"
+    r"(?:uma?\s+|an?\s+)?"
+    r"(?:imagem|foto|figura|ilustra[çc][ãa]o|desenho|image|picture|photo|drawing|illustration)"
+    r"(?:\s+(?:de|do|da|of))?\s*[:,-]?\s*(?P<prompt>.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# "desenhe um robô azul": drawing verbs already mean an image
+DRAW_REQUEST = re.compile(
+    r"^\s*(?:por favor,?\s*)?(?:desenhe|desenha|draw)\s+(?:uma?\s+|an?\s+)?(?P<prompt>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+CODE_HINT = (
+    "Ferramenta disponível: o usuário pode executar código Python que você escrever, num "
+    "ambiente isolado sem internet, com pandas, numpy, matplotlib, scipy e openpyxl. "
+    "Quando for útil (contas, análise de dados, gráficos), escreva um único bloco ```python "
+    "completo. Gráficos do matplotlib aparecem sozinhos (não use plt.show)."
+)
+
+
+def image_request(text: str) -> str | None:
+    """The image description when the message asks for an image, else None."""
+    match = IMAGE_REQUEST.match(text) or DRAW_REQUEST.match(text)
+    if not match:
+        return None
+    return (match.group("prompt").strip() or text.strip())[:1000]
 
 
 def sse_event(event: str, data: dict[str, Any]) -> str:
@@ -424,6 +471,74 @@ async def chat(
         await memories_context(session, user.id, query) if prefs.memory_enabled else None
     )
 
+    tool_prefs = prefs.tools or {}
+    tool_notes: list[str] = []
+    web_text, web_sources = None, []
+    if body.web_search:
+        ok, reason = await usable(state, tool_prefs, "web_search")
+        if not ok:
+            tool_notes.append(
+                f"O usuário pediu pesquisa na web, mas ela não está disponível: {reason} "
+                "Avise isso e responda com o que você sabe."
+            )
+        else:
+            try:
+                async with tool_client(state, timeout=25) as client:
+                    web_text, web_sources = await web_context(
+                        client, state.settings.searxng_url, query, state.url_check
+                    )
+            except WebError as e:
+                tool_notes.append(f"A pesquisa na web falhou ({e}). Avise o usuário.")
+
+    image_prompt = (
+        image_request(user_msg.content)
+        if user_msg is not None and (body.tools or conv.mode == "criar")
+        else None
+    )
+    image_job: Job | None = None
+    if image_prompt:
+        ok, reason = await usable(state, tool_prefs, "image_generation")
+        if ok:
+            image_job = Job(
+                user_id=user.id,
+                kind="image",
+                prompt=image_prompt,
+                params={"width": 512, "height": 512, "steps": 20, "negative": ""},
+                status="queued",
+                progress=0.0,
+                result_file_ids=[],
+                conversation_id=conv.id,
+            )
+            session.add(image_job)
+            await session.commit()
+            schedule_job(state, image_job.id)
+        else:
+            tool_notes.append(
+                "O usuário pediu uma imagem, mas a geração de imagens não está disponível: "
+                f"{reason} "
+                "Explique isso em uma frase e ofereça descrever a imagem em texto."
+            )
+    if body.tools and not image_job:
+        ok, _ = await usable(state, tool_prefs, "code")
+        if ok:
+            names = [
+                f.name
+                for f in (
+                    await session.scalars(select(File).where(File.conversation_id == conv.id))
+                ).all()
+            ]
+            hint = CODE_HINT
+            if names:
+                hint += " Arquivos da conversa disponíveis para o código: " + ", ".join(
+                    f"/data/{n}" for n in names
+                )
+            tool_notes.append(hint)
+
+    all_sources = (sources or []) + web_sources
+
+    if image_job:
+        return _image_job_response(state, conv, user, user_msg, spec, image_job, image_prompt)
+
     history: list[dict[str, Any]] = [
         {"role": m.role, "content": m.content}
         for m in messages
@@ -445,6 +560,8 @@ async def chat(
         if memory_saved
         else None,
         files_context,
+        web_text,
+        *tool_notes,
     ]
     if instructions := "\n\n".join(c for c in context if c):
         history.insert(0, {"role": "system", "content": instructions})
@@ -473,7 +590,7 @@ async def chat(
         "user_message": message_out(user_msg) if user_msg else None,
         "completion_id": completion_id,
         "model": spec.id,
-        "sources": sources,
+        "sources": all_sources,
         "memory_saved": memory_saved,
     }
 
@@ -519,7 +636,7 @@ async def chat(
                     reasoning="".join(reasoning) or None,
                     model=spec.id,
                     status=status,
-                    sources=sources or None,
+                    sources=all_sources or None,
                 )
                 s.add(msg)
                 if c := await s.get(Conversation, conv_id):
@@ -544,6 +661,47 @@ async def chat(
             )
         )
         yield sse_event("done", {"message": saved, "status": status, "usage": usage or None})
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _image_job_response(state, conv, user, user_msg, spec, job, prompt) -> StreamingResponse:
+    text = (
+        f"Criando sua imagem: “{prompt}”. Neste servidor isso pode levar alguns minutos; "
+        "ela aparece aqui quando ficar pronta."
+    )
+    meta = {
+        "conversation": conversation_out(conv),
+        "user_message": message_out(user_msg) if user_msg else None,
+        "completion_id": None,
+        "model": spec.id,
+        "sources": [],
+        "memory_saved": None,
+    }
+    conv_id = conv.id
+
+    async def events():
+        yield sse_event("meta", meta)
+        yield sse_event("delta", {"content": text})
+        async with state.sessions() as s:
+            msg = Message(
+                conversation_id=conv_id,
+                role="assistant",
+                content=text,
+                model=spec.id,
+                status="ok",
+                tool={"type": "image", "job_id": job.id},
+            )
+            s.add(msg)
+            if c := await s.get(Conversation, conv_id):
+                c.updated_at = utcnow()
+            await s.commit()
+            saved = message_out(msg)
+        yield sse_event("done", {"message": saved, "status": "ok", "usage": None})
 
     return StreamingResponse(
         events(),

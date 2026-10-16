@@ -45,7 +45,6 @@ export const SECTIONS: Section[] = [
     label: "Ferramentas",
     href: "/ferramentas",
     icon: LayoutGrid,
-    step: 6,
     description: "Navegação web, geração de imagens, OCR, planilhas e execução de código.",
   },
   {
@@ -53,7 +52,6 @@ export const SECTIONS: Section[] = [
     label: "Criar",
     href: "/criar",
     icon: SquarePlus,
-    step: 6,
     description: "Gere imagens e vídeos localmente, sem enviar nada para fora.",
   },
   {

@@ -8,6 +8,7 @@ from ..models_db import (
     Conversation,
     File,
     FileChunk,
+    Job,
     Memory,
     Message,
     Project,
@@ -36,6 +37,7 @@ async def delete_user_data(session: AsyncSession, user_id: str, files_root=None)
         for f in files:
             (files_root / f.path).unlink(missing_ok=True)
     await session.execute(delete(Memory).where(Memory.user_id == user_id))
+    await session.execute(delete(Job).where(Job.user_id == user_id))
     await delete_conversations(session, user_id)
     await session.execute(delete(Project).where(Project.user_id == user_id))
     await session.execute(delete(UserSettings).where(UserSettings.user_id == user_id))

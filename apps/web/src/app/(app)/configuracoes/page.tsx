@@ -280,11 +280,11 @@ function ModelTab() {
 // ---------------------------------------------------------------- Ferramentas
 
 function ToolsTab() {
-  const { settings, refreshSettings } = useWorkspace();
-  if (!settings) return <p className="text-subtle">Carregando…</p>;
+  const { tools, refreshSettings, refreshTools } = useWorkspace();
+  if (tools.length === 0) return <p className="text-subtle">Carregando…</p>;
   const set = async (id: string, on: boolean) => {
     await api("/api/settings", { method: "PATCH", json: { tools: { [id]: on } } });
-    await refreshSettings();
+    await Promise.all([refreshSettings(), refreshTools()]);
   };
   return (
     <div className="space-y-2">
@@ -292,18 +292,19 @@ function ToolsTab() {
         Escolha o que o Vortex pode usar nas suas conversas. Tudo roda no servidor; nada é enviado para fora, exceto a
         pesquisa na web quando ligada.
       </p>
-      {settings.tools.map((t) => (
+      {tools.map((t) => (
         <div key={t.id} className="flex items-center gap-4 rounded-xl border border-line p-4">
           <div className="min-w-0 flex-1">
             <p className="font-medium">
               {t.label}
               {!t.available && (
-                <span className="ml-2 rounded-md bg-chip px-2 py-0.5 text-[11px] text-subtle">etapa {t.step}</span>
+                <span className="ml-2 rounded-md bg-chip px-2 py-0.5 text-[11px] text-subtle">indisponível</span>
               )}
             </p>
             <p className="text-sm text-muted">{t.description}</p>
+            {!t.available && <p className="mt-1 text-xs text-warn">{t.reason}</p>}
           </div>
-          <Toggle label={t.label} checked={t.enabled} disabled={!t.available} onChange={(v) => void set(t.id, v)} />
+          <Toggle label={t.label} checked={t.enabled} disabled={t.step > 6} onChange={(v) => void set(t.id, v)} />
         </div>
       ))}
     </div>
