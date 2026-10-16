@@ -1,0 +1,43 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _find_registry() -> Path:
+    """Locate models/registry.yaml by walking up from this file (works from a repo checkout)."""
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "models" / "registry.yaml"
+        if candidate.exists():
+            return candidate
+    return Path("models/registry.yaml")
+
+
+class Settings(BaseSettings):
+    """All settings come from VORTEX_* environment variables or a .env file."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="VORTEX_",
+        env_file=(".env", "../../.env"),
+        extra="ignore",
+    )
+
+    env: str = "development"
+    local_mode: bool = True
+    registry_path: Path = Field(default_factory=_find_registry)
+    database_url: str = "sqlite+aiosqlite:///./data/vortex.db"
+    db_auto_create: bool = False
+    cors_origins: str = "http://localhost:3000"
+    rate_limit_per_minute: int = 120
+    request_timeout: float = 300.0
+    mock_backend: bool = False
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

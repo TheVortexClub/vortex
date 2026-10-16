@@ -1,0 +1,4 @@
+unsloth>=2025.9
+trl>=0.20
+datasets>=3.0
+transformers>=4.55

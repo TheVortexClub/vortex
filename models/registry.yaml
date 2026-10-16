@@ -1,0 +1,87 @@
+# Vortex model registry
+#
+# Public model ids (what clients send as "model") are mapped to a backend and an upstream model.
+# Add a new version or a fine-tuned variant by adding an entry here; no code changes needed.
+# Values support ${ENV_VAR:-default} expansion.
+
+default_chat: ${VORTEX_DEFAULT_MODEL:-vortex-v0.2.1}
+default_embedding: vortex-embed
+
+backends:
+  # Vortex's own GPT trained from scratch (vortex/ package + `python train.py` checkpoints).
+  native:
+    type: native
+    path: ${VORTEX_NATIVE_PATH:-..}
+    checkpoint_dir: ${VORTEX_NATIVE_CHECKPOINTS:-../checkpoints}
+    device: ${VORTEX_NATIVE_DEVICE:-}
+
+  # Ollama, llama.cpp server and vLLM all expose an OpenAI-compatible /v1 API.
+  ollama:
+    type: openai_compat
+    base_url: ${OLLAMA_BASE_URL:-http://localhost:11434/v1}
+  llamacpp:
+    type: openai_compat
+    base_url: ${LLAMACPP_BASE_URL:-http://localhost:8080/v1}
+  vllm:
+    type: openai_compat
+    base_url: ${VLLM_BASE_URL:-http://localhost:8001/v1}
+
+models:
+  - id: vortex-v0.2.1
+    kind: chat
+    display_name: Vortex v0.2.1
+    version: 0.2.1
+    badge: PRÓPRIO
+    description: Nosso modelo exclusivo. Rápido, inteligente e versátil.
+    aliases: [vortex, vortex-latest]
+    backend: ${VORTEX_CHAT_BACKEND:-ollama}
+    # Built from models/Modelfile on top of VORTEX_BASE_MODEL (see scripts/create-model.ps1).
+    upstream_model: ${VORTEX_CHAT_MODEL:-vortex:0.2.1}
+    system_prompt_file: prompts/vortex-system.md
+    context_window: 32768
+    released: "2026-10-16"
+    capabilities: [chat, streaming, tools, json_mode]
+    defaults:
+      temperature: 0.7
+      top_p: 0.9
+      max_tokens: 2048
+
+  - id: vortex-native
+    kind: chat
+    display_name: Vortex Nativo
+    version: 0.2.1
+    badge: PRÓPRIO
+    description: GPT criado do zero e treinado com as suas conversas (train.py).
+    aliases: [vortex-gpt]
+    backend: native
+    upstream_model: vortex-gpt
+    context_window: 256
+    released: "2026-10-16"
+    capabilities: [chat, streaming]
+    defaults:
+      temperature: 0.7
+      max_tokens: 300
+
+  - id: vortex-embed
+    kind: embedding
+    display_name: Vortex Embeddings
+    version: 0.2.1
+    description: Embeddings para memória e busca em arquivos (RAG).
+    backend: ${VORTEX_EMBED_BACKEND:-ollama}
+    upstream_model: ${VORTEX_EMBED_MODEL:-nomic-embed-text}
+    dimensions: 768
+    released: "2026-10-16"
+    capabilities: [embeddings]
+
+  # Example: a LoRA fine-tune exported to GGUF and served by llama.cpp (see models/finetune).
+  # - id: vortex-v0.3
+  #   kind: chat
+  #   display_name: Vortex v0.3
+  #   version: 0.3.0
+  #   badge: PRÓPRIO
+  #   description: Próxima geração do Vortex.
+  #   backend: llamacpp
+  #   upstream_model: vortex-v0.3-Q4_K_M
+  #   system_prompt_file: prompts/vortex-system.md
+  #   context_window: 32768
+  #   hidden: true

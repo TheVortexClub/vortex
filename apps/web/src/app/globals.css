@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --color-vx-bg: #050816;
+  --color-vx-surface: #0b1226;
+  --color-vx-border: #1b2a4a;
+  --color-vx-blue: #3b82f6;
+  --color-vx-violet: #8b5cf6;
+  --color-vx-text: #e6ecff;
+  --color-vx-muted: #8a97b8;
+}
+
+html,
+body {
+  background: var(--color-vx-bg);
+  color: var(--color-vx-text);
+}
+
+.vx-glow {
+  box-shadow:
+    0 0 0 1px rgb(59 130 246 / 0.5),
+    0 0 24px rgb(59 130 246 / 0.25);
+}

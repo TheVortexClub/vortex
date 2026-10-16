@@ -1,0 +1,45 @@
+# NVIDIA GPU override (requires the NVIDIA Container Toolkit).
+#
+#   docker compose -f compose.yaml -f infra/compose/gpu.yaml up
+#   docker compose -f compose.yaml -f infra/compose/gpu.yaml --profile vllm up
+#
+# To serve Vortex from vLLM, set VORTEX_CHAT_BACKEND=vllm and VORTEX_CHAT_MODEL to the
+# model name vLLM serves (VLLM_MODEL below).
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:latest}
+    profiles: ["vllm"]
+    command:
+      - "--model"
+      - "${VLLM_MODEL:-Qwen/Qwen2.5-7B-Instruct-AWQ}"
+      - "--max-model-len"
+      - "${VLLM_MAX_LEN:-16384}"
+      - "--gpu-memory-utilization"
+      - "0.90"
+    environment:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:${VLLM_PORT:-8001}:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  hf-cache:

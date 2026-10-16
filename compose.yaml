@@ -1,0 +1,125 @@
+# Vortex — docker compose up
+#
+#   cp .env.example .env
+#   docker compose up --build
+#
+# Optional profiles:
+#   docker compose --profile postgres up        # Postgres instead of SQLite
+#   docker compose --profile llamacpp up        # llama.cpp server for GGUF fine-tunes
+#   docker compose -f compose.yaml -f infra/compose/gpu.yaml up   # NVIDIA GPU (+ vllm profile)
+#
+# All ports bind to 127.0.0.1 only. Nothing is exposed to your network unless you change it.
+
+name: vortex
+
+services:
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # First run: downloads the open-weight base (several GB), builds vortex:0.2.1, then exits.
+  ollama-init:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      VORTEX_BASE_MODEL: ${VORTEX_BASE_MODEL:-qwen2.5:7b-instruct-q4_K_M}
+      VORTEX_MODEL_NAME: ${VORTEX_CHAT_MODEL:-vortex:0.2.1}
+      VORTEX_PULL_MODELS: ${VORTEX_PULL_MODELS:-qwen2.5:7b-instruct-q4_K_M nomic-embed-text}
+    volumes:
+      - ./infra/ollama/pull-models.sh:/init/pull-models.sh:ro
+      - ./models/Modelfile:/init/Modelfile:ro
+    entrypoint: ["/bin/sh", "/init/pull-models.sh"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      LLAMACPP_BASE_URL: ${LLAMACPP_BASE_URL:-http://llamacpp:8080/v1}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-http://vllm:8000/v1}
+    volumes:
+      - api-data:/app/data
+      - ./checkpoints:/app/native/checkpoints:ro   # python train.py output
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: vortex
+      POSTGRES_USER: vortex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vortex}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vortex -d vortex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  llamacpp:
+    image: ${LLAMACPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    profiles: ["llamacpp"]
+    volumes:
+      - ./models/gguf:/models:ro
+    command:
+      - "-m"
+      - "/models/${LLAMACPP_MODEL_FILE:-vortex-v0.3-Q4_K_M.gguf}"
+      - "--alias"
+      - "${LLAMACPP_MODEL_ALIAS:-vortex-v0.3-Q4_K_M}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+      - "-c"
+      - "${LLAMACPP_CTX:-8192}"
+      - "--jinja"
+    ports:
+      - "127.0.0.1:${LLAMACPP_PORT:-8080}:8080"
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
+  api-data:
+  pg-data:

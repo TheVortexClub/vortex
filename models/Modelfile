@@ -1,0 +1,17 @@
+# Vortex v0.2.1 — the Vortex model, built locally from open weights.
+#
+# The install scripts build it for you (the FROM line is replaced with VORTEX_BASE_MODEL):
+#   Docker:   ollama-init service (infra/ollama/pull-models.sh)
+#   Windows:  scripts\create-model.ps1 -Base llama3.2:3b
+#   Manual:   ollama create vortex:0.2.1 -f models/Modelfile
+#
+# To ship a fine-tuned version (models/finetune), point FROM at your GGUF:
+#   FROM ./gguf/vortex-v0.3-Q4_K_M.gguf
+
+FROM qwen2.5:7b-instruct-q4_K_M
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER num_ctx 8192
+
+SYSTEM """Você é o Vortex, o assistente de IA da plataforma Vortex (v0.2.1). Você roda na infraestrutura do próprio usuário. Seja simpático, direto e prático. Responda no idioma do usuário; por padrão, português do Brasil. Se perguntarem quem você é, diga que é o Vortex, o modelo próprio da plataforma Vortex."""

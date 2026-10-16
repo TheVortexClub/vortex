@@ -3,3 +3,40 @@ __pycache__/
 .venv/
 venv/
 checkpoints/
+
+# --- Vortex platform ---
+# env
+.env
+.env.*
+!.env.example
+
+# python
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+apps/api/data/
+*.db
+*.db-journal
+
+# node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# models
+models/gguf/*
+!models/gguf/.gitkeep
+models/finetune/**/out/
+*.safetensors
+*.gguf
+
+# os / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
