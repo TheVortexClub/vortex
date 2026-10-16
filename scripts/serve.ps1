@@ -58,6 +58,19 @@ try {
 } finally { Pop-Location }
 
 # --- Run ----------------------------------------------------------------------
+# A Vortex API left behind (e.g. the window was closed instead of Ctrl+C) would hold the port.
+foreach ($port in 8000, $Port) {
+  Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
+    $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.OwningProcess)").CommandLine
+    if ($cmd -match "vortex_api\.main|server\.mjs") {
+      Write-Host "[vortex] encerrando uma instância antiga na porta $port..."
+      Stop-Process -Id $_.OwningProcess -Force
+    } elseif ($cmd) {
+      throw "A porta $port está sendo usada por outro programa: $cmd"
+    }
+  }
+}
+
 $apiProc = Start-Process -FilePath $python -WorkingDirectory $api -PassThru -WindowStyle Minimized `
   -ArgumentList "-m", "uvicorn", "vortex_api.main:create_app", "--factory", "--host", "127.0.0.1", "--port", "8000"
 
