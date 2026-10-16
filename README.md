@@ -63,7 +63,8 @@ On a 3B model a CPU-only notebook answers at about 5 tokens/s, and people's requ
 by Ollama. Use a 7B base (`.\scripts\create-model.ps1 -Base qwen2.5:7b-instruct-q4_K_M`) when you
 have 16 GB+ RAM.
 
-API only (no website): `.\scriptsun-api.ps1`.
+API only (no website): `.\scripts
+un-api.ps1`.
 
 ### Option B: Docker (one command)
 

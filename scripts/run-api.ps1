@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Runs the Vortex API on this machine (no Docker), against your local Ollama.
 .EXAMPLE

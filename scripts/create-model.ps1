@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Builds the Vortex model in your local Ollama from an open-weight base + models/Modelfile.
 .EXAMPLE
